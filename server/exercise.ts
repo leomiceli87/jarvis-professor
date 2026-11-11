@@ -9,6 +9,7 @@ import { EXERCISE_SYSTEM } from './prompts.ts';
 import { TrainingError } from './training.ts';
 import type { Rating, Review } from './review.ts';
 import { askHelp, type Help, type HelpLevel } from './help.ts';
+import { candidateText } from './profile.ts';
 
 // ---- rodar dotnet test
 
@@ -163,7 +164,7 @@ export class Exercises {
     const have = ex.ajudas.find((h) => h.nivel === nivel);
     if (have) return have;
     const q = this.question(ex.questionId);
-    const h = await askHelp(this.llm, q, nivel, { enunciado: ex.enunciado, esqueleto: ex.esqueleto, testes: ex.testes, rascunho: rascunho ?? ex.codigo });
+    const h = await askHelp(this.llm, q, nivel, { enunciado: ex.enunciado, esqueleto: ex.esqueleto, testes: ex.testes, rascunho: rascunho ?? ex.codigo, candidato: candidateText(this.store) });
     const ajudas = [...ex.ajudas, h].sort((a, b) => a.nivel - b.nivel);
     this.store.db.prepare('UPDATE exercises SET ajudas = ? WHERE id = ?').run(JSON.stringify(ajudas), id);
     return h;

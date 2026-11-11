@@ -2,7 +2,8 @@ import type { Store } from './db.ts';
 import { localDay } from './day.ts';
 import type { Job } from './types.ts';
 import { asReply, parseJson, type Llm, type LlmMessage, type WebSource, NO_LLM } from './llm.ts';
-import { CANDIDATE, DEBRIEF_SYSTEM, DOSSIER_SYSTEM, GRADER_SYSTEM, interviewerSystem, PROCESS_NOTES } from './prompts.ts';
+import { DEBRIEF_SYSTEM, DOSSIER_SYSTEM, GRADER_SYSTEM, interviewerSystem, PROCESS_NOTES } from './prompts.ts';
+import { candidateText } from './profile.ts';
 
 export const BOSS = -1;
 export const BOSS_THRESHOLD = 70;
@@ -147,7 +148,7 @@ export class Training {
     const reply = asReply(await llm({
       system: DOSSIER_SYSTEM, maxTokens: 8000, webSearch: DOSSIER_SEARCHES,
       messages: [{ role: 'user', content:
-        `Company: ${job.company}\nRole: ${job.title}\n${CANDIDATE}\n` +
+        `Company: ${job.company}\nRole: ${job.title}\n${candidateText(this.store)}\n` +
         `Known process notes: ${note ?? 'none; infer and mark confidence as baixa'}\n` +
         `Job description excerpt:\n${desc.slice(0, 5000) || '(not available)'}` }],
     }));
@@ -309,7 +310,7 @@ export class Training {
     const text = asReply(await llm({
       system: DEBRIEF_SYSTEM, maxTokens: 6000,
       messages: [{ role: 'user', content:
-        `${CANDIDATE}\nCompany: ${job.company}\nRole: ${job.title}\n` +
+        `${candidateText(this.store)}\nCompany: ${job.company}\nRole: ${job.title}\n` +
         `Grade summary: ${s.grade.resumo}\nConcepts:\n${grade || '- (none graded)'}\n\nTRANSCRIPT\n${transcript}` }],
     })).text;
     const raw = parseJson<{ perguntas?: unknown; aula?: unknown }>(text);

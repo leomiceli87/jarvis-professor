@@ -39,6 +39,14 @@ Fora do Anthropic não há busca na internet: o dossiê sai sem fontes e com con
 como relatada por candidato. Todo o resto funciona igual. Modelos pequenos ou locais podem falhar em devolver o JSON que
 os prompts pedem; prefira modelos de ponta para o dossiê e os exercícios.
 
+## O seu perfil (currículo)
+
+Na primeira vez, o Radar pede a configuração: envie o currículo em PDF, DOCX ou TXT. O modelo de IA que você configurou lê
+o texto, monta o seu perfil (stack principal, o que soma e o que desconta na compatibilidade das vagas, pontos fracos para
+o treino) e **sugere** os filtros. Você confirma ou ajusta cada um; nada é aplicado sozinho. O arquivo não sai da sua
+máquina: só o texto vai para o provedor de IA. Dá para trocar o currículo ou voltar ao perfil de exemplo na aba Filtros.
+Sem currículo, o app usa um perfil de exemplo (desenvolvedor .NET sênior em Toronto).
+
 ## Treino e simulado
 
 - Em qualquer vaga do radar: "Abrir dossiê e treinar".

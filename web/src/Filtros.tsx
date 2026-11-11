@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Perfil } from './Perfil.tsx';
 import { api, llm, type Company, type FilterKey, type Filters, type JobView, type LlmInfo, type State } from './api.ts';
 
 type Rule = Filters['rules'][FilterKey];
@@ -50,6 +51,7 @@ export function Filtros({ state, jobs, reload }: Props) {
       {error && <p className="banner" role="alert">{error}</p>}
 
       <ProfessorCard />
+      <Perfil state={state} reload={reload} />
 
       <section className="card" aria-label="Regras">
         {keys.map((k) => (

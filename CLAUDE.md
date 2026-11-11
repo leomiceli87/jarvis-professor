@@ -30,6 +30,13 @@ Voz local (opcional, Apple Silicon): instalar uma vez conforme `voice/README.md`
   `draftkings|wd1|DraftKings`); lista por POST paginado, detalhe só das vagas com título de engenharia. A data é o
   `startDate` do Workday (bate com o "Posted N Days Ago"), que pode ser bem anterior à data de republicação no LinkedIn.
 - `server/classify.ts`, `salary.ts`, `score.ts`: remoto, Canadá, senioridade, salário e compatibilidade por palavras-chave.
+  As listas de `score.ts` (`DEFAULT_SCORE`) são o currículo do Leo e continuam sendo o padrão desta instalação.
+- `server/profile.ts` + `resume.ts`: perfil a partir do currículo (PDF via pdfjs-dist, DOCX via fflate, TXT/MD). O professor lê o
+  texto (`PROFILE_SYSTEM`) e devolve o briefing em inglês que entra nos prompts (`candidateText(store)` substitui o `CANDIDATE`
+  fixo), a stack principal (vira o filtro "Stack …", coluna `jobs.dotnet`), as palavras-chave que pontuam e **sugestões** de
+  filtros; `rescore()` repontua todas as vagas coletadas (manuais ficam). Tudo em `settings` (`profile`, `profile.resumeText`,
+  `setup.done`). Instalação nova sem `setup.done` mostra o card de configuração no Radar: enviar currículo ou seguir com o
+  perfil de exemplo; as sugestões só valem com "Aplicar". A instalação do Leo tem `setup.done` e o perfil padrão: nada mudou.
 - `server/filters.ts`: cada filtro é obrigatorio, preferencia ou desligado. Obrigatório esconde; preferência só ordena.
 - `server/training.ts` + `prompts.ts` + `llm.ts`: dossiê, sessão de entrevista, avaliação, prontidão, simulado completo.
   O dossiê usa a busca na internet do Claude (`web_search_20260209`, até 8 buscas). Pergunta "relatada" só fica com esse
@@ -153,6 +160,11 @@ Pergunta de código no Treino do dia verificada em 11 nov numa cópia do banco (
 editor com cores e números de linha, "Compilar" marcou a linha 7 com `CS1002: ; expected`, degrau 1 da ajuda na tela, degrau 3
 pela API em 15 s (7 parágrafos e solução de 51 linhas) e, com ela, os 11 testes passaram valendo "difícil" (volta em 1 dia).
 Múltipla escolha gerada em 6 s para a pergunta de Kubernetes, com explicação por alternativa; não vista na tela, só pela API.
+
+Currículo verificado em 11 nov numa instalação nova (banco vazio, apagado depois): PDF de teste de uma engenheira Java lido
+em 11 s; o professor montou stack Java/Spring Boot, 12 habilidades com peso, 8 lacunas, briefing em inglês e sugestões de
+filtros com justificativa em português ("você decide"); o filtro de stack passou a "Stack Java/Spring". Card de configuração
+visto na tela. Na instalação do Leo, `setup.done` foi marcado e o perfil continua o padrão (C#/.NET).
 
 ## Próximos passos
 

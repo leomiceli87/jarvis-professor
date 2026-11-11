@@ -2,7 +2,8 @@ import type { Store } from './db.ts';
 import { localDay } from './day.ts';
 import { Bank, MATERIAS, type BankQuestion } from './bank.ts';
 import { asReply, parseJson, type Llm, NO_LLM } from './llm.ts';
-import { CANDIDATE, LESSON_SYSTEM, REVIEW_SYSTEM } from './prompts.ts';
+import { LESSON_SYSTEM, REVIEW_SYSTEM } from './prompts.ts';
+import { candidateText } from './profile.ts';
 import { TrainingError } from './training.ts';
 import { askHelp, type Help, type HelpLevel } from './help.ts';
 
@@ -168,7 +169,7 @@ export class Review {
   async help(questionId: number, nivel: HelpLevel, rascunho?: string, now: Date = new Date()): Promise<Help & { proximaEmDias: number | null }> {
     const question = this.bank.list().find((q) => q.id === questionId);
     if (!question) throw new TrainingError(404, 'Pergunta não encontrada');
-    const h = await askHelp(this.llm, question, nivel, { rascunho });
+    const h = await askHelp(this.llm, question, nivel, { rascunho, candidato: candidateText(this.store) });
     if (nivel < 3) return { ...h, proximaEmDias: null };
     const res = this.record(question, rascunho?.trim() ? `[pediu a resolução] ${rascunho.trim()}` : '[pediu a resolução]', null,
       { nota: 0, passou: false, feedback: 'Pediu a resolução guiada antes de responder.' }, 1, now);
@@ -185,7 +186,7 @@ export class Review {
     const reply = asReply(await this.llm({
       system: REVIEW_SYSTEM, maxTokens: 1500,
       messages: [{ role: 'user', content:
-        `${CANDIDATE}\nSubject: ${MATERIAS[question.materia]} / ${question.topico}\n` +
+        `${candidateText(this.store)}\nSubject: ${MATERIAS[question.materia]} / ${question.topico}\n` +
         `${question.empresa ? `Company context: ${question.empresa}\n` : ''}` +
         `Time spent: ${seconds ?? 'unknown'} seconds\n\nQUESTION\n${question.texto}\n\nCANDIDATE ANSWER\n${answer}` }],
     }));

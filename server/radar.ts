@@ -2,7 +2,7 @@ import type { Company, RawJob } from './types.ts';
 import { titleKey, type JobInput, type Store } from './db.ts';
 import { collect, collectWorkday, httpFetcher, type Fetcher } from './collectors/index.ts';
 import { canadaEligible, isEngineeringTitle, isRemote, isSenior, mentionsDotnet } from './classify.ts';
-import { scoreFit } from './score.ts';
+import { DEFAULT_SCORE, scoreFit, type ScoreProfile } from './score.ts';
 
 export interface CompanyResult {
   company: string;
@@ -14,14 +14,18 @@ export interface CompanyResult {
   removed: number;
 }
 
-export function toJobInput(companyId: number, source: string, raw: RawJob): JobInput {
-  const fit = scoreFit(raw.title, raw.text);
+/** Como pontuar: as palavras-chave do perfil e a regex da stack principal. Padrão: o perfil fixo do código. */
+export interface Scoring { score: ScoreProfile; stack: RegExp | null }
+export const DEFAULT_SCORING: Scoring = { score: DEFAULT_SCORE, stack: null };
+
+export function toJobInput(companyId: number, source: string, raw: RawJob, scoring: Scoring = DEFAULT_SCORING): JobInput {
+  const fit = scoreFit(raw.title, raw.text, scoring.score);
   return {
     companyId, source, externalId: raw.externalId, title: raw.title, location: raw.location,
     remote: isRemote(raw.location, raw.remoteHint, raw.text),
     canada: canadaEligible(raw.location, raw.text),
     senior: isSenior(raw.title),
-    dotnet: mentionsDotnet(raw.title, raw.text),
+    dotnet: scoring.stack ? scoring.stack.test(raw.title) || scoring.stack.test(raw.text) : mentionsDotnet(raw.title, raw.text),
     salaryMin: raw.salary?.min ?? null, salaryMax: raw.salary?.max ?? null, salaryCurrency: raw.salary?.currency ?? null,
     postedAt: raw.postedAt, applyUrl: raw.applyUrl, fit: fit.fit, fitMatched: fit.matched, fitGaps: fit.gaps,
     note: null, description: raw.text.slice(0, 12_000),
@@ -45,7 +49,7 @@ export function mergeManual(store: Store, companyId: number, source: string): vo
   }
 }
 
-export async function runCompany(store: Store, c: Company, fetcher: Fetcher, now: string): Promise<CompanyResult> {
+export async function runCompany(store: Store, c: Company, fetcher: Fetcher, now: string, scoring: Scoring = DEFAULT_SCORING): Promise<CompanyResult> {
   const res: CompanyResult = { company: c.name, ok: false, error: null, total: 0, engineering: 0, added: 0, removed: 0 };
   try {
     let raws: RawJob[];
@@ -60,7 +64,7 @@ export async function runCompany(store: Store, c: Company, fetcher: Fetcher, now
     const eng = raws.filter((r) => r.applyUrl && isEngineeringTitle(r.title));
     res.engineering = eng.length;
     for (const raw of eng) {
-      const input = toJobInput(c.id, c.ats, raw);
+      const input = toJobInput(c.id, c.ats, raw, scoring);
       const existing = store.findJob(c.ats, raw.externalId);
       if (existing) {
         store.refreshJob(existing.id, input, now);
@@ -80,10 +84,10 @@ export async function runCompany(store: Store, c: Company, fetcher: Fetcher, now
   return res;
 }
 
-export async function runRadar(store: Store, fetcher: Fetcher = httpFetcher, now: Date = new Date()): Promise<CompanyResult[]> {
+export async function runRadar(store: Store, fetcher: Fetcher = httpFetcher, now: Date = new Date(), scoring: Scoring = DEFAULT_SCORING): Promise<CompanyResult[]> {
   const stamp = now.toISOString();
   const targets = store.companies().filter((c) => !c.ignored && c.ats !== 'none' && c.token);
-  const results = await Promise.all(targets.map((c) => runCompany(store, c, fetcher, stamp)));
+  const results = await Promise.all(targets.map((c) => runCompany(store, c, fetcher, stamp, scoring)));
   store.setSetting('lastRadarRun', stamp);
   return results;
 }

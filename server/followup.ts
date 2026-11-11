@@ -1,7 +1,8 @@
 import type { Store } from './db.ts';
 import type { Job } from './types.ts';
 import { asReply, parseJson, type Llm, NO_LLM } from './llm.ts';
-import { CANDIDATE, FOLLOWUP_SYSTEM } from './prompts.ts';
+import { FOLLOWUP_SYSTEM } from './prompts.ts';
+import { candidateText } from './profile.ts';
 import { TrainingError } from './training.ts';
 import { addDays, localDay } from './day.ts';
 
@@ -75,7 +76,7 @@ export class FollowUps {
     const raw = parseJson<Partial<Draft>>(asReply(await this.llm({
       system: FOLLOWUP_SYSTEM, maxTokens: 1200,
       messages: [{ role: 'user', content:
-        `${CANDIDATE}\nCompany: ${job.company}\nRole: ${job.title}\nApplied on: ${localDay(job.appliedAt)}\n${PURPOSE[step as Step]}\n` +
+        `${candidateText(this.store)}\nCompany: ${job.company}\nRole: ${job.title}\nApplied on: ${localDay(job.appliedAt)}\n${PURPOSE[step as Step]}\n` +
         `${earlier.length ? `Earlier messages:\n${earlier.join('\n')}\n` : ''}Job description excerpt:\n${desc || '(not available)'}` }],
     })).text);
     const d: Draft = {

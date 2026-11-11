@@ -7,6 +7,8 @@ export interface State {
   labels: Record<FilterKey, string>;
   companies: Company[];
   lastRadarRun: string | null;
+  /** Instalação nova: até enviar o currículo ou escolher o perfil de exemplo, o app pede a configuração. */
+  configuracao: { feita: boolean; perfil: 'padrao' | 'curriculo'; llmReady: boolean };
 }
 export interface RunResult { company: string; ok: boolean; error: string | null; total: number; engineering: number; added: number; removed: number }
 
@@ -91,6 +93,25 @@ export interface LlmInfo {
 export const llm = {
   get: (atualizar = false) => call<LlmInfo>('GET', `/api/llm${atualizar ? '?atualizar=1' : ''}`),
   setModel: (modelo: string) => call<LlmInfo>('POST', '/api/llm', { modelo }),
+};
+export interface SkillPattern { name: string; pattern: string; weight: number }
+export type Rule = 'obrigatorio' | 'preferencia' | 'desligado';
+export interface FilterSuggestion { regras: Partial<Record<'remoto' | 'canada' | 'senior' | 'stackDotnet' | 'salarioPublicado', Rule>>; pisoUsd: number | null; porque: string }
+export interface Profile {
+  origem: 'padrao' | 'curriculo'; candidato: string; rotuloStack: string; stackPattern: string;
+  score: { core: SkillPattern[]; skills: SkillPattern[]; gaps: SkillPattern[] }; resumo: string; arquivo: string | null; atualizadoEm: string | null;
+  sugestoes: FilterSuggestion | null; temTexto: boolean; configuracaoFeita: boolean;
+}
+export const profile = {
+  get: () => call<Profile>('GET', '/api/profile'),
+  upload: async (file: File): Promise<Profile & { vagasPontuadas: number }> => {
+    const res = await fetch('/api/profile/resume', { method: 'POST', headers: { 'content-type': file.type || 'application/octet-stream', 'x-filename': encodeURIComponent(file.name) }, body: file });
+    const b = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(b.error ?? `Erro ${res.status}`);
+    return b;
+  },
+  reset: () => call<Profile>('POST', '/api/profile/reset', {}),
+  confirm: () => call<Profile>('POST', '/api/profile/confirm', {}),
 };
 export const progress = { get: () => call<ProgressView>('GET', '/api/progress') };
 

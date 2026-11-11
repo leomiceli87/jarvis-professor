@@ -18,13 +18,13 @@ export const asLevel = (v: unknown): HelpLevel => {
 const clean = (v: unknown) => String(v ?? '').replace(/[#*_`>]/g, '').replace(/\s+/g, ' ').trim();
 
 /** Pede ao professor um degrau de ajuda sobre a pergunta (e, se houver, o exercício e o que o Leo já escreveu). */
-export async function askHelp(llm: Llm | null, q: BankQuestion, nivel: HelpLevel, ctx: { enunciado?: string; esqueleto?: string; testes?: string; rascunho?: string } = {}): Promise<Help> {
+export async function askHelp(llm: Llm | null, q: BankQuestion, nivel: HelpLevel, ctx: { enunciado?: string; esqueleto?: string; testes?: string; rascunho?: string; candidato?: string } = {}): Promise<Help> {
   if (!llm) throw new TrainingError(503, NO_LLM);
   const coding = q.formato === 'codigo';
   const raw = parseJson<{ paragrafos?: unknown; codigo?: unknown; respostaModelo?: unknown }>(asReply(await llm({
     system: HELP_SYSTEM, maxTokens: 4000,
     messages: [{ role: 'user', content:
-      `${CANDIDATE}\nSubject: ${MATERIAS[q.materia]} / ${q.topico}\n${q.empresa ? `Company: ${q.empresa}\n` : ''}` +
+      `${ctx.candidato ?? CANDIDATE}\nSubject: ${MATERIAS[q.materia]} / ${q.topico}\n${q.empresa ? `Company: ${q.empresa}\n` : ''}` +
       `Question type: ${coding ? 'coding (C#)' : q.formato}\nInterview question: ${q.texto}\n` +
       (ctx.enunciado ? `\nExercise statement:\n${ctx.enunciado}\n` : '') +
       (ctx.esqueleto ? `\nStarter code:\n${ctx.esqueleto}\n` : '') +

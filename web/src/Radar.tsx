@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
 import { api, salaryText, shortDate, STATUS_LABEL, type FilterKey, type JobView, type RunResult, type State, type Status } from './api.ts';
+import { Perfil } from './Perfil.tsx';
 
 const CHIP: Partial<Record<FilterKey, string>> = {
   remoto: '100% REMOTO', canada: 'ABERTA AO CANADÁ', senior: 'SÊNIOR', sedeEua: 'SEDE NOS EUA',
-  stackDotnet: 'C#/.NET', salarioPublicado: 'COM SALÁRIO', processoConhecido: 'PROCESSO CONHECIDO',
+  salarioPublicado: 'COM SALÁRIO', processoConhecido: 'PROCESSO CONHECIDO',
 };
 
 interface Props { state: State; jobs: JobView[]; reload: () => Promise<void>; openFilters: () => void; openTraining: (jobId: number) => void }
@@ -21,6 +22,7 @@ export function Radar({ state, jobs, reload, openFilters, openTraining }: Props)
   const selected = jobs.find((j) => j.id === selectedId) ?? visible[0] ?? null;
   const f = state.filters;
   const chips = (Object.keys(CHIP) as FilterKey[]).filter((k) => f.rules[k] === 'obrigatorio').map((k) => CHIP[k]!);
+  if (f.rules.stackDotnet === 'obrigatorio') chips.push(state.labels.stackDotnet.replace(/^Stack /, '').toUpperCase());
   if (f.rules.pisoSalarial === 'obrigatorio') chips.push(`A PARTIR DE US$ ${Math.round(f.pisoUsd / 1000)} MIL`);
   if (f.rules.recencia === 'obrigatorio') chips.push(`ÚLTIMOS ${f.diasRecencia} DIAS`);
 
@@ -48,6 +50,7 @@ export function Radar({ state, jobs, reload, openFilters, openTraining }: Props)
         </div>
       </section>
 
+      {!state.configuracao.feita && <div className="setup-wrap"><Perfil state={state} reload={reload} setup /></div>}
       {runError && <p className="banner" role="alert">{runError}</p>}
       {results && (
         <p className="banner ok" role="status">

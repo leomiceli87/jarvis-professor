@@ -16,6 +16,8 @@ import { VOICE_URL, voiceCall, voiceStatus } from './voice.ts';
 import { dotnetRunner, Exercises, type Runner } from './exercise.ts';
 import { Quizzes } from './quiz.ts';
 import type { Professor } from './providers.ts';
+import { Profiles } from './profile.ts';
+import { extractResumeText, RESUME_MAX_BYTES } from './resume.ts';
 import { asLevel } from './help.ts';
 import { join as pathJoin } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -76,6 +78,7 @@ export function createHandler(store: Store, opts: { staticDir?: string; fetcher?
   const exercises = new Exercises(store, bank, review, opts.llm ?? null,
     opts.runner ?? dotnetRunner(opts.exerciseDir ?? pathJoin(tmpdir(), 'jarvis-professor-exercicio')));
   const quizzes = new Quizzes(store, bank, review, opts.llm ?? null);
+  const profiles = new Profiles(store, opts.llm ?? null);
   let running: Promise<unknown> | null = null;
 
   async function api(req: IncomingMessage, res: ServerResponse, path: string, query: URLSearchParams): Promise<void> {
@@ -83,11 +86,26 @@ export function createHandler(store: Store, opts: { staticDir?: string; fetcher?
     const idMatch = path.match(/^\/api\/(jobs|companies)\/(\d+)$/);
 
     if (method === 'GET' && path === '/api/state') {
+      const p = profiles.get();
       return json(res, 200, {
-        filters: store.filters(), labels: FILTER_LABELS, companies: store.companies(),
+        filters: store.filters(), labels: { ...FILTER_LABELS, stackDotnet: `Stack ${p.rotuloStack}` }, companies: store.companies(),
         lastRadarRun: store.getSetting<string | null>('lastRadarRun', null),
+        configuracao: { feita: profiles.setupDone(), perfil: p.origem, llmReady: opts.llm != null },
       });
     }
+    // Perfil: currículo enviado, lido pelo professor; pontua as vagas e sugere filtros. A pessoa confirma na tela.
+    if (path === '/api/profile' && method === 'GET') return json(res, 200, { ...profiles.get(), temTexto: profiles.resumeText() !== null, configuracaoFeita: profiles.setupDone() });
+    if (path === '/api/profile/resume' && method === 'POST') {
+      const data = await raw(req, RESUME_MAX_BYTES + 1);
+      const filename = decodeURIComponent(String(req.headers['x-filename'] ?? 'curriculo')).replace(/[^\w.\- ()]/g, '').slice(0, 120) || 'curriculo';
+      let text: string;
+      try { text = await extractResumeText(data, filename, String(req.headers['content-type'] ?? '')); }
+      catch (e) { throw new HttpError(400, e instanceof Error ? e.message : 'Não consegui ler o currículo'); }
+      const p = await profiles.setFromResume(text, filename);
+      return json(res, 200, { ...p, temTexto: true, configuracaoFeita: true, vagasPontuadas: store.jobs().length });
+    }
+    if (path === '/api/profile/reset' && method === 'POST') return json(res, 200, { ...profiles.reset(), temTexto: false, configuracaoFeita: profiles.setupDone() });
+    if (path === '/api/profile/confirm' && method === 'POST') { profiles.confirmSetup(); return json(res, 200, { ...profiles.get(), temTexto: profiles.resumeText() !== null, configuracaoFeita: true }); }
     if (method === 'GET' && path === '/api/jobs') return json(res, 200, listJobs(store));
     if (method === 'GET' && path === '/api/questions') {
       const f = { materia: query.get('materia') ?? undefined, empresa: query.get('empresa') ?? undefined,
@@ -101,7 +119,7 @@ export function createHandler(store: Store, opts: { staticDir?: string; fetcher?
     }
     if (method === 'POST' && path === '/api/radar/run') {
       if (running) throw new HttpError(409, 'O radar já está rodando');
-      running = runRadar(store, fetcher);
+      running = runRadar(store, fetcher, new Date(), { score: profiles.get().score, stack: profiles.get().origem === 'curriculo' ? profiles.stackRegex() : null });
       try { return json(res, 200, await running); } finally { running = null; }
     }
     if (method === 'POST' && path === '/api/companies') {

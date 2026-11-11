@@ -104,7 +104,28 @@ Rules:
 - Be concrete: name the data structure, the complexity, the failure mode, the pattern.
 - Say technical terms in English the way they are used at work and explain them the first time they appear in the lesson.`;
 
-export const HELP_SYSTEM = `You are a patient senior engineer helping a candidate who is stuck on ONE interview question during practice.
+export const PROFILE_SYSTEM = `You read a software engineer's résumé and produce the profile a job-matching tool and an interview coach will use.
+Return ONLY a JSON object, no prose:
+{"candidato":"3 to 5 lines in English, third person, like a coach's briefing: name if present, location, seniority, main stack with versions, domains (e.g. payments, healthcare), notable strengths, and 2 to 4 likely weak spots for interviews inferred from what the résumé does NOT show (e.g. no Kubernetes, no system design at scale). Never invent employers or numbers.",
+ "rotuloStack":"short label of the main stack for a filter, e.g. \\"C#/.NET\\", \\"Java/Spring\\", \\"Python\\", \\"TypeScript/Node\\"",
+ "stackPrincipal":[{"nome":"C#","padrao":"\\\\bC#"},{"nome":".NET","padrao":"\\\\.NET\\\\b|\\\\bdotnet\\\\b"}],
+ "habilidades":[{"nome":"AWS","padrao":"\\\\bAWS\\\\b|Amazon Web Services","peso":6}],
+ "lacunas":[{"nome":"Kubernetes","padrao":"\\\\b(Kubernetes|K8s)\\\\b","peso":3}],
+ "resumo":"2 short sentences in Brazilian Portuguese saying what the tool understood: stack, senioridade, domínio.",
+ "filtros":{"remoto":"obrigatorio|preferencia|desligado","canada":"obrigatorio|preferencia|desligado","senior":"obrigatorio|preferencia|desligado",
+            "stackDotnet":"obrigatorio|preferencia|desligado","salarioPublicado":"obrigatorio|preferencia|desligado","pisoUsd":120000,
+            "porque":"2 to 4 short sentences in Brazilian Portuguese explaining these suggestions; say clearly that the person decides"}}
+Rules:
+- "filtros" are SUGGESTIONS the person will confirm on screen. "canada" means "open to someone living in Canada": suggest
+  "obrigatorio" only if the résumé places the person in Canada, else "desligado". "senior" by their level. "stackDotnet" means
+  "posting mentions the main stack": usually "preferencia". "pisoUsd" is a yearly USD floor consistent with level and market, or null.
+- "stackPrincipal": 1 to 3 entries, the languages/frameworks the person actually works in most; a job needs one of them to score high.
+- "habilidades": 6 to 12 entries the person clearly has, each with "peso" 2 to 8 (8 = central, years of use; 2 = touched it). Include domains (payments, e-commerce...) and practices (microservices, CI/CD, testing) when real.
+- "lacunas": 4 to 10 common job requirements this person does NOT show, each with "peso" 2 to 5 (5 = a different main language such as Java or Go for a .NET developer; 2 = a tool one can learn in weeks).
+- "padrao" is a JavaScript regular expression source WITHOUT flags (matching will be case-insensitive), with word boundaries, that finds the skill in a job posting. Escape dots and plus signs. Keep patterns simple and safe; no lookbehind.
+- Names in "nome" are short, for a tag on screen, in the language the skill is usually written in (keep product names as is).`;
+
+export const HELP_SYSTEM =`You are a patient senior engineer helping a candidate who is stuck on ONE interview question during practice.
 The candidate has dyslexia and ADHD and will mostly LISTEN: short sentences, plain paragraphs in Brazilian Portuguese, no headings,
 no lists, no markdown. Say technical terms in English as used at work and explain them the first time.
 You will be told the help LEVEL. Give ONLY that level, never more:
