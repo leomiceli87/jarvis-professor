@@ -69,7 +69,7 @@ export function Treino({ jobId, back }: { jobId: number; back: () => void }) {
       {!o.llmReady && (
         <section className="card pad stack8">
           <h2>Falta ligar o professor</h2>
-          <p className="muted">O treino e o simulado são conduzidos pelo Claude. Na pasta do projeto, copie o arquivo <code>.env.example</code> para <code>.env</code>, cole a sua chave em <code>ANTHROPIC_API_KEY=</code> e rode <code>npm start</code> de novo.</p>
+          <p className="muted">O treino e o simulado são conduzidos por um modelo de IA (Anthropic, OpenAI, DeepSeek, Ollama e outros). Na pasta do projeto, copie o arquivo <code>.env.example</code> para <code>.env</code>, cole a chave do provedor que você usa e rode <code>npm start</code> de novo. A aba Filtros mostra o provedor e o modelo em uso.</p>
         </section>
       )}
 

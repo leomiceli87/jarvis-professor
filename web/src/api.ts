@@ -84,6 +84,14 @@ export interface ProgressView {
   vagas: { jobId: number; empresa: string; titulo: string; prontidao: number; simuladoLiberado: boolean; simuladoAprovado: boolean;
     etapas: { titulo: string; fechados: number; total: number; acesa: boolean }[] }[];
 }
+export interface LlmInfo {
+  provedor: string | null; nome: string; modelo: string | null; pronto: boolean; erro: string | null; buscaNaInternet: boolean;
+  chaveEnv: string | null; opcoes: { id: string; nome: string; chaveEnv: string | null }[]; modelos: string[]; erroLista: string | null;
+}
+export const llm = {
+  get: (atualizar = false) => call<LlmInfo>('GET', `/api/llm${atualizar ? '?atualizar=1' : ''}`),
+  setModel: (modelo: string) => call<LlmInfo>('POST', '/api/llm', { modelo }),
+};
 export const progress = { get: () => call<ProgressView>('GET', '/api/progress') };
 
 export interface Draft { linkedin: string; assunto: string; email: string }

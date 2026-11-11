@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import type { Store } from './db.ts';
 import type { Bank, BankQuestion } from './bank.ts';
 import { MATERIAS } from './bank.ts';
-import { asReply, parseJson, type Llm } from './llm.ts';
+import { asReply, parseJson, type Llm, NO_LLM } from './llm.ts';
 import { EXERCISE_SYSTEM } from './prompts.ts';
 import { TrainingError } from './training.ts';
 import type { Rating, Review } from './review.ts';
@@ -186,7 +186,7 @@ export class Exercises {
 
   /** O Claude escreve enunciado, esqueleto e testes; só aceita se compilar junto e não usar APIs proibidas. */
   async create(questionId: number, now: Date = new Date()): Promise<Exercise> {
-    if (!this.llm) throw new TrainingError(503, 'Falta a chave da API do Claude no arquivo .env.');
+    if (!this.llm) throw new TrainingError(503, NO_LLM);
     const existing = this.store.db.prepare('SELECT id FROM exercises WHERE question_id = ? ORDER BY id DESC').get(questionId) as any;
     if (existing) return this.get(existing.id);
     const q = this.bank.list().find((x) => x.id === questionId);

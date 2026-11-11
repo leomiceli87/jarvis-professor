@@ -49,7 +49,7 @@ export function Codigo({ startQuestionId, onBack }: { startQuestionId?: number; 
       </section>
       {busy && <p className="banner ok" role="status">{busy}</p>}
       {error && <p className="banner" role="alert">{error}</p>}
-      {!llmReady && <p className="banner" role="alert">Falta a chave da API do Claude no arquivo .env para gerar exercícios.</p>}
+      {!llmReady && <p className="banner" role="alert">Professor desligado: configure a chave da API no arquivo .env (veja .env.example).</p>}
       <ol className="qlist">
         {(itens ?? []).slice(0, shown).map(({ question: q, exercicio: e }) => (
           <li key={q.id} className="qitem">

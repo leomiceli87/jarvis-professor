@@ -1,6 +1,6 @@
 import type { BankQuestion } from './bank.ts';
 import { MATERIAS } from './bank.ts';
-import { asReply, parseJson, type Llm } from './llm.ts';
+import { asReply, parseJson, type Llm, NO_LLM } from './llm.ts';
 import { CANDIDATE, HELP_SYSTEM } from './prompts.ts';
 import { TrainingError } from './training.ts';
 
@@ -19,7 +19,7 @@ const clean = (v: unknown) => String(v ?? '').replace(/[#*_`>]/g, '').replace(/\
 
 /** Pede ao professor um degrau de ajuda sobre a pergunta (e, se houver, o exercício e o que o Leo já escreveu). */
 export async function askHelp(llm: Llm | null, q: BankQuestion, nivel: HelpLevel, ctx: { enunciado?: string; esqueleto?: string; testes?: string; rascunho?: string } = {}): Promise<Help> {
-  if (!llm) throw new TrainingError(503, 'Falta a chave da API do Claude no arquivo .env.');
+  if (!llm) throw new TrainingError(503, NO_LLM);
   const coding = q.formato === 'codigo';
   const raw = parseJson<{ paragrafos?: unknown; codigo?: unknown; respostaModelo?: unknown }>(asReply(await llm({
     system: HELP_SYSTEM, maxTokens: 4000,

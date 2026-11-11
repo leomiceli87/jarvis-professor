@@ -13,10 +13,31 @@ npm start
 
 Abra http://localhost:4317.
 
-## Ligar o professor
+## Ligar o professor (qualquer provedor de IA)
 
-O treino e o simulado são conduzidos pelo Claude. Copie `.env.example` para `.env`, cole a sua chave em
-`ANTHROPIC_API_KEY=` e rode `npm start` de novo. O arquivo `.env` fica fora do git.
+O professor (dossiê, entrevista, correção, aulas, exercícios) é um modelo de linguagem. Funciona com:
+
+| Provedor | Chave no `.env` | Observação |
+| --- | --- | --- |
+| Anthropic (Claude) | `ANTHROPIC_API_KEY` | Único com busca na internet no dossiê: fontes e perguntas relatadas com link. |
+| OpenAI (ChatGPT) | `OPENAI_API_KEY` | |
+| DeepSeek | `DEEPSEEK_API_KEY` | |
+| Groq | `GROQ_API_KEY` | |
+| Mistral | `MISTRAL_API_KEY` | |
+| OpenRouter | `OPENROUTER_API_KEY` | Muitos modelos com uma chave só. |
+| Ollama (local) | nenhuma | `JARVIS_PROVIDER=ollama`, depois de `ollama pull <modelo>`. |
+| Compatível com OpenAI | `JARVIS_API_KEY` | `JARVIS_PROVIDER=custom` e `JARVIS_BASE_URL=...` (LM Studio, vLLM, LiteLLM...). |
+
+1. Copie `.env.example` para `.env` e preencha a chave do provedor que você usa. O `.env` fica fora do git.
+2. Opcional: `JARVIS_PROVIDER` força um provedor; sem ele, vale o primeiro com chave preenchida. `JARVIS_MODEL` fixa um modelo.
+3. `npm start`. O terminal mostra o provedor e o modelo em uso.
+
+Sem `JARVIS_MODEL`, o app pergunta ao provedor quais modelos a sua chave acessa e escolhe um. A aba **Filtros** mostra o
+provedor, a lista de modelos disponíveis e deixa trocar o modelo sem reiniciar (a escolha fica salva por provedor).
+
+Fora do Anthropic não há busca na internet: o dossiê sai sem fontes e com confiança baixa, e nenhuma pergunta é rotulada
+como relatada por candidato. Todo o resto funciona igual. Modelos pequenos ou locais podem falhar em devolver o JSON que
+os prompts pedem; prefira modelos de ponta para o dossiê e os exercícios.
 
 ## Treino e simulado
 

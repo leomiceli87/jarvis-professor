@@ -97,7 +97,7 @@ export function Dia() {
 
   if (!q.llmReady) {
     return <main className="dia">{header}<section className="card pad stack8"><h2>Falta ligar o professor</h2>
-      <p className="muted">Crie o arquivo <code>.env</code> com <code>ANTHROPIC_API_KEY=</code> e reinicie.</p></section></main>;
+      <p className="muted">Copie <code>.env.example</code> para <code>.env</code>, cole a chave do provedor que você usa (Anthropic, OpenAI, DeepSeek, Ollama…) e reinicie. A aba Filtros mostra o provedor e o modelo em uso.</p></section></main>;
   }
 
   if (!item) {

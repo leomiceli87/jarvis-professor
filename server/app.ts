@@ -15,6 +15,7 @@ import { FollowUps } from './followup.ts';
 import { VOICE_URL, voiceCall, voiceStatus } from './voice.ts';
 import { dotnetRunner, Exercises, type Runner } from './exercise.ts';
 import { Quizzes } from './quiz.ts';
+import type { Professor } from './providers.ts';
 import { asLevel } from './help.ts';
 import { join as pathJoin } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -61,7 +62,7 @@ export function listJobs(store: Store, now: Date = new Date()) {
     .sort((a, b) => b.rank - a.rank || a.company.localeCompare(b.company));
 }
 
-export function createHandler(store: Store, opts: { staticDir?: string; fetcher?: Fetcher; llm?: Llm | null; bankFile?: string; voiceUrl?: string; runner?: Runner; exerciseDir?: string } = {}) {
+export function createHandler(store: Store, opts: { staticDir?: string; fetcher?: Fetcher; llm?: Llm | null; professor?: Professor; bankFile?: string; voiceUrl?: string; runner?: Runner; exerciseDir?: string } = {}) {
   const fetcher = opts.fetcher ?? httpFetcher;
   const training = new Training(store, opts.llm ?? null);
   const bank = new Bank(store);
@@ -157,6 +158,23 @@ export function createHandler(store: Store, opts: { staticDir?: string; fetcher?
       return json(res, 200, await followups.draft(jobId, step));
     }
     if (method === 'GET' && path === '/api/progress') return json(res, 200, progress.summary());
+    // O professor: provedor e modelo em uso, modelos disponíveis para a chave, troca de modelo sem reiniciar.
+    if (path === '/api/llm') {
+      const p = opts.professor;
+      if (!p) return json(res, 200, { provedor: null, nome: 'Professor de teste', modelo: null, pronto: opts.llm != null, erro: null, buscaNaInternet: false, chaveEnv: null, opcoes: [], modelos: [] });
+      if (method === 'GET') {
+        let modelos: string[] = []; let erroLista: string | null = null;
+        if (p.ready || !p.erro?.startsWith('Falta')) {
+          try { modelos = await p.listModels(query.get('atualizar') === '1'); } catch (e) { erroLista = e instanceof Error ? e.message : String(e); }
+        }
+        return json(res, 200, { ...p.describe(), modelos, erroLista });
+      }
+      if (method === 'POST') {
+        const b = await body(req);
+        try { p.setModel(String(b.modelo ?? '')); } catch (e) { throw new HttpError(400, e instanceof Error ? e.message : 'Modelo inválido'); }
+        return json(res, 200, { ...p.describe(), modelos: await p.listModels().catch(() => []), erroLista: null });
+      }
+    }
     if (method === 'GET' && path === '/api/exercises') return json(res, 200, { itens: exercises.list(query.get('materia') ?? undefined), llmReady: opts.llm != null });
     if (method === 'POST' && path === '/api/exercises') {
       const b = await body(req);

@@ -47,7 +47,7 @@ test('sem chave: o treino explica o que falta', async () => {
   const t = new Training(store, null);
   const id = store.jobs()[0].id;
   assert.equal(t.overview(id).llmReady, false);
-  await assert.rejects(t.buildDossier(id), (e: TrainingError) => e.status === 503 && /ANTHROPIC_API_KEY/.test(e.message));
+  await assert.rejects(t.buildDossier(id), (e: TrainingError) => e.status === 503 && /.env/.test(e.message));
 });
 
 test('dossiê: cria etapas e conceitos e usa as notas de processo da empresa', async () => {

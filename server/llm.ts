@@ -44,6 +44,9 @@ export function loadEnv(path: string): void {
   }
 }
 
+/** Mensagem única para "professor desligado", seja qual for o provedor. */
+export const NO_LLM = 'Professor desligado: configure a chave da API no arquivo .env (veja .env.example) e reinicie.';
+
 export const MIN_MAX_TOKENS = 16_000;
 
 export function anthropicLlm(apiKey: string, model: string): Llm {

@@ -77,6 +77,12 @@ Voz local (opcional, Apple Silicon): instalar uma vez conforme `voice/README.md`
   Lembretes no dia 0, 5 e 12 (dia local); param quando vira "entrevista" ou "descartada". O Claude escreve nota de LinkedIn
   (até 300 caracteres) e e-mail com assunto (`FOLLOWUP_SYSTEM`), só com fatos do perfil. O app nunca envia nada:
   o Leo copia, manda e marca "Enviei".
+- `server/providers.ts`: o professor roda com qualquer provedor. `Professor` lê o `.env` (`JARVIS_PROVIDER`, chave do provedor,
+  `JARVIS_MODEL`, `JARVIS_BASE_URL`), lista os modelos que a chave acessa (`GET /models`, ou `/v1/models` no Anthropic) e escolhe
+  um pela preferência do provedor quando não há `JARVIS_MODEL`. Anthropic usa a API própria (única com busca na internet); os
+  outros (OpenAI, DeepSeek, Groq, Mistral, OpenRouter, Ollama, `custom`) usam chat completions, com piso de 8.000 no limite e
+  nova tentativa sem limite se o provedor recusar. `GET/POST /api/llm`: provedor, modelo, lista e troca sem reiniciar (salva em
+  `settings` por provedor; vence o `JARVIS_MODEL`). Card "Professor" na aba Filtros. A configuração do Leo não muda: Anthropic.
 - `server/llm.ts`: o pedido à API tem piso de 16.000 `max_tokens`. O modelo raciocina antes de responder e, com limite
   baixo, pode gastar tudo pensando e voltar vazio (parada `max_tokens`). O tamanho da resposta é controlado pelos prompts.
 - `server/app.ts`: rotas da API. `server/seed.ts`: 16 empresas e as 21 vagas levantadas à mão em 9 nov 2026.

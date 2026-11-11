@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { api, type Company, type FilterKey, type Filters, type JobView, type State } from './api.ts';
+import { useEffect, useState } from 'react';
+import { api, llm, type Company, type FilterKey, type Filters, type JobView, type LlmInfo, type State } from './api.ts';
 
 type Rule = Filters['rules'][FilterKey];
 const RULES: [Rule, string][] = [['obrigatorio', 'Obrigatório'], ['preferencia', 'Preferência'], ['desligado', 'Desligado']];
@@ -48,6 +48,8 @@ export function Filtros({ state, jobs, reload }: Props) {
         <p className="count" role="status"><strong>{visible}</strong> de {jobs.length} vagas aparecem com estes filtros</p>
       </div>
       {error && <p className="banner" role="alert">{error}</p>}
+
+      <ProfessorCard />
 
       <section className="card" aria-label="Regras">
         {keys.map((k) => (
@@ -116,5 +118,49 @@ export function Filtros({ state, jobs, reload }: Props) {
         <p className="muted small">O identificador é o trecho do endereço da página de vagas: job-boards.greenhouse.io/<strong>affirm</strong>, jobs.lever.co/<strong>veeva</strong>, jobs.ashbyhq.com/<strong>nome</strong>. No Workday, cole o endereço inteiro da página de vagas (empresa.wd1.myworkdayjobs.com/Site).</p>
       </section>
     </main>
+  );
+}
+
+/** O professor: provedor e modelo em uso, com a lista de modelos que a chave dá acesso. A chave só muda no .env. */
+function ProfessorCard() {
+  const [info, setInfo] = useState<LlmInfo | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const load = async (atualizar = false) => {
+    setBusy(true);
+    try { setInfo(await llm.get(atualizar)); setErr(null); } catch (e) { setErr(e instanceof Error ? e.message : 'Erro'); } finally { setBusy(false); }
+  };
+  useEffect(() => { void load(); }, []);
+  if (!info) return <section className="card"><h2>Professor</h2><p className="muted small">Carregando…</p></section>;
+  const lista = info.modelos.length > 0 ? info.modelos : info.modelo ? [info.modelo] : [];
+  return (
+    <section className="card" aria-label="Professor">
+      <h2>Professor</h2>
+      <div className="frow">
+        <div className="flabel">
+          <span className="fname">{info.nome}</span>
+          <span className="muted small">
+            {info.pronto ? `Ligado · modelo ${info.modelo}` : info.erro ?? 'Desligado'}
+            {info.pronto && !info.buscaNaInternet ? ' · sem busca na internet: o dossiê sai sem fontes e com confiança baixa' : ''}
+          </span>
+          {info.erroLista && <span className="muted small">Não consegui listar os modelos: {info.erroLista}</span>}
+          <span className="muted small">Para trocar de provedor, mude <code>JARVIS_PROVIDER</code> e a chave no arquivo <code>.env</code> e reinicie. Opções: {info.opcoes.map((o) => o.id).join(', ')}.</span>
+        </div>
+        {lista.length > 0 && (
+          <span className="inputs">
+            <label>Modelo{' '}
+              <select aria-label="Modelo" value={info.modelo ?? ''} disabled={busy} onChange={async (e) => {
+                setBusy(true);
+                try { setInfo(await llm.setModel(e.target.value)); setErr(null); } catch (x) { setErr(x instanceof Error ? x.message : 'Erro'); } finally { setBusy(false); }
+              }}>
+                {lista.map((m) => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </label>
+            <button className="ghost small-btn" disabled={busy} onClick={() => load(true)}>{busy ? '…' : 'Atualizar lista'}</button>
+          </span>
+        )}
+      </div>
+      {err && <p className="banner" role="alert">{err}</p>}
+    </section>
   );
 }

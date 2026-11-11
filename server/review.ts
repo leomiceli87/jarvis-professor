@@ -1,7 +1,7 @@
 import type { Store } from './db.ts';
 import { localDay } from './day.ts';
 import { Bank, MATERIAS, type BankQuestion } from './bank.ts';
-import { asReply, parseJson, type Llm } from './llm.ts';
+import { asReply, parseJson, type Llm, NO_LLM } from './llm.ts';
 import { CANDIDATE, LESSON_SYSTEM, REVIEW_SYSTEM } from './prompts.ts';
 import { TrainingError } from './training.ts';
 import { askHelp, type Help, type HelpLevel } from './help.ts';
@@ -177,7 +177,7 @@ export class Review {
 
   /** Corrige a resposta com o Claude, grava o histórico e reagenda a pergunta. Com dica (ajuda 2), o acerto vale no máximo "bom". */
   async answer(questionId: number, text: string, seconds: number | null, now: Date = new Date(), ajuda = 0): Promise<AnswerResult> {
-    if (!this.llm) throw new TrainingError(503, 'Falta a chave da API do Claude no arquivo .env.');
+    if (!this.llm) throw new TrainingError(503, NO_LLM);
     const question = this.bank.list().find((q) => q.id === questionId);
     if (!question) throw new TrainingError(404, 'Pergunta não encontrada');
     const answer = text.trim();
@@ -204,7 +204,7 @@ export class Review {
 
   /** Aula falada sobre o fundamento da pergunta: texto em parágrafos, para a voz local ler. */
   async lesson(questionId: number): Promise<{ texto: string; paragrafos: string[] }> {
-    if (!this.llm) throw new TrainingError(503, 'Falta a chave da API do Claude no arquivo .env.');
+    if (!this.llm) throw new TrainingError(503, NO_LLM);
     const question = this.bank.list().find((q) => q.id === questionId);
     if (!question) throw new TrainingError(404, 'Pergunta não encontrada');
     const texto = asReply(await this.llm({

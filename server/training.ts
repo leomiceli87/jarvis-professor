@@ -1,7 +1,7 @@
 import type { Store } from './db.ts';
 import { localDay } from './day.ts';
 import type { Job } from './types.ts';
-import { asReply, parseJson, type Llm, type LlmMessage, type WebSource } from './llm.ts';
+import { asReply, parseJson, type Llm, type LlmMessage, type WebSource, NO_LLM } from './llm.ts';
 import { CANDIDATE, DEBRIEF_SYSTEM, DOSSIER_SYSTEM, GRADER_SYSTEM, interviewerSystem, PROCESS_NOTES } from './prompts.ts';
 
 export const BOSS = -1;
@@ -89,7 +89,7 @@ export class Training {
   }
 
   private needLlm(): Llm {
-    if (!this.llm) throw new TrainingError(503, 'Falta a chave da API do Claude. Crie o arquivo .env na pasta do projeto com ANTHROPIC_API_KEY=sua-chave e reinicie.');
+    if (!this.llm) throw new TrainingError(503, NO_LLM);
     return this.llm;
   }
   private job(jobId: number): Job {

@@ -1,6 +1,6 @@
 import type { Store } from './db.ts';
 import type { Job } from './types.ts';
-import { asReply, parseJson, type Llm } from './llm.ts';
+import { asReply, parseJson, type Llm, NO_LLM } from './llm.ts';
 import { CANDIDATE, FOLLOWUP_SYSTEM } from './prompts.ts';
 import { TrainingError } from './training.ts';
 import { addDays, localDay } from './day.ts';
@@ -66,7 +66,7 @@ export class FollowUps {
 
   /** O Claude escreve o rascunho do passo. Pedir de novo reescreve. */
   async draft(jobId: number, step: number, now: Date = new Date()): Promise<Draft> {
-    if (!this.llm) throw new TrainingError(503, 'Falta a chave da API do Claude no arquivo .env.');
+    if (!this.llm) throw new TrainingError(503, NO_LLM);
     if (!STEPS.includes(step as Step)) throw new TrainingError(400, 'Passo inválido');
     const job = this.job(jobId);
     if (!job.appliedAt) throw new TrainingError(409, 'Marque a vaga como enviada antes');

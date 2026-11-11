@@ -1,7 +1,7 @@
 import type { Store } from './db.ts';
 import type { Bank, BankQuestion } from './bank.ts';
 import { MATERIAS } from './bank.ts';
-import { asReply, parseJson, type Llm } from './llm.ts';
+import { asReply, parseJson, type Llm, NO_LLM } from './llm.ts';
 import { QUIZ_SYSTEM } from './prompts.ts';
 import { TrainingError } from './training.ts';
 import type { Review } from './review.ts';
@@ -42,7 +42,7 @@ export class Quizzes {
     const q = this.question(questionId);
     const have = this.stored(q.id);
     if (have) return this.pub(have);
-    if (!this.llm) throw new TrainingError(503, 'Falta a chave da API do Claude no arquivo .env.');
+    if (!this.llm) throw new TrainingError(503, NO_LLM);
     const raw = parseJson<{ enunciado?: unknown; opcoes?: unknown; correta?: unknown; explicacoes?: unknown }>(asReply(await this.llm({
       system: QUIZ_SYSTEM, maxTokens: 2000,
       messages: [{ role: 'user', content: `Subject: ${MATERIAS[q.materia]} / ${q.topico}\n${q.empresa ? `Company: ${q.empresa}\n` : ''}Interview question: ${q.texto}` }],
