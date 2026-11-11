@@ -1,0 +1,8 @@
+node_modules/
+web/dist/
+data/*.db*
+.env
+.DS_Store
+voice/.venv/
+__pycache__/
+data/exercicio/
