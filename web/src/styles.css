@@ -154,6 +154,8 @@ textarea { width: 100%; resize: vertical; padding: 16px; border-radius: 8px; bor
 .notas { display: flex; flex-wrap: wrap; gap: 24px 32px; }
 .nota { display: flex; align-items: center; gap: 8px; }
 .cgrade { border-top: 1px solid var(--line); padding-top: 16px; display: flex; flex-direction: column; gap: 8px; }
+.debrief .msg.me { background: var(--bg); }
+.debrief pre.model { font-family: var(--body); font-size: 18px; }
 @media (max-width: 600px) { .treino, .chat { padding: 16px; } .composer { padding: 16px; } }
 
 /* banco de perguntas */

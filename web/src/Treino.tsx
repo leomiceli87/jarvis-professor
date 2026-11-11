@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { training, salaryText, voice, type Overview, type Session } from './api.ts';
+import { training, salaryText, voice, type Debrief, type Overview, type Session } from './api.ts';
 import { Microfone, Ouvir } from './Voz.tsx';
 import { useAcerto } from './Acerto.tsx';
 
@@ -168,10 +168,16 @@ export function Treino({ jobId, back }: { jobId: number; back: () => void }) {
 
 interface SalaProps { o: Overview; session: Session; busy: string | null; error: string | null; onReply: (t: string) => Promise<boolean>; onFinish: () => Promise<void>; onClose: () => void }
 
+const stripCode = (s: string) => s.replace(/```[\s\S]*?```/g, ' (code on screen) ');
+
 function Sala({ o, session, busy, error, onReply, onFinish, onClose }: SalaProps) {
   const [text, setText] = useState('');
   const [elapsed, setElapsed] = useState(0);
   const [hasVoice, setHasVoice] = useState(false);
+  const [debrief, setDebrief] = useState<Debrief | null>(session.debrief);
+  const [debriefBusy, setDebriefBusy] = useState(false);
+  const [debriefError, setDebriefError] = useState<string | null>(null);
+  useEffect(() => { setDebrief(session.debrief); }, [session.id, session.debrief]);
   const end = useRef<HTMLDivElement>(null);
   useEffect(() => { voice.status().then((v) => setHasVoice(v.ok)).catch(() => setHasVoice(false)); }, []);
   const lastInterviewer = session.messages.map((m, i) => (m.role === 'assistant' ? i : -1)).filter((i) => i >= 0).pop() ?? -1;
@@ -207,7 +213,7 @@ function Sala({ o, session, busy, error, onReply, onFinish, onClose }: SalaProps
             <span className="hud">{m.role === 'assistant' ? 'ENTREVISTADOR' : 'VOCÊ'}</span>
             <pre>{m.content}</pre>
             {hasVoice && open && i === lastInterviewer && (
-              <Ouvir key={i} lang="en" label="Ouvir o entrevistador" paragraphs={m.content.replace(/```[\s\S]*?```/g, ' (code on screen) ').split(/\n\s*\n/)} />
+              <Ouvir key={i} lang="en" label="Ouvir o entrevistador" paragraphs={stripCode(m.content).split(/\n\s*\n/)} />
             )}
           </div>
         ))}
@@ -220,6 +226,15 @@ function Sala({ o, session, busy, error, onReply, onFinish, onClose }: SalaProps
                 <div key={k} className="nota"><span className="big">{g.notas[k]}</span><span className="muted small">{label}<br />de 4</span></div>
               ))}
             </div>
+            {hasVoice && (
+              <Ouvir key={`g${session.id}`} lang="pt" label="Ouvir a avaliação" paragraphs={[
+                g.aprovado ? 'Você passaria nesta etapa.' : 'Você ainda não passaria nesta etapa.',
+                g.resumo,
+                ...g.conceitos.filter((c) => c.avaliado).flatMap((c) => [
+                  `${c.nome}: ${c.passou ? 'acerto' : 'para refazer'}. ${c.feedback}`, c.fundamento ?? '', c.exemploReal ?? '',
+                ]),
+              ].filter(Boolean)} />
+            )}
             {g.conceitos.map((c) => (
               <article key={c.nome} className="cgrade">
                 <span className={!c.avaliado ? 'hud' : c.passou ? 'hud ok' : 'hud warn'}>{!c.avaliado ? 'NÃO AVALIADO' : c.passou ? 'ACERTO' : 'PARA REFAZER'}</span>
@@ -229,7 +244,45 @@ function Sala({ o, session, busy, error, onReply, onFinish, onClose }: SalaProps
                 {c.exemploReal && <p><strong>Na vida real.</strong> {c.exemploReal}</p>}
               </article>
             ))}
-            <button className="primary fit-w" onClick={onClose}>Voltar à vaga</button>
+
+            {!debrief && (
+              <div className="stack8">
+                <button className="primary fit-w" disabled={debriefBusy} onClick={async () => {
+                  setDebriefBusy(true); setDebriefError(null);
+                  try { setDebrief(await training.debrief(session.id)); }
+                  catch (e) { setDebriefError(msg(e)); }
+                  finally { setDebriefBusy(false); }
+                }}>{debriefBusy ? 'O professor está preparando a aula…' : 'Aula sobre esta entrevista'}</button>
+                <p className="muted small">O professor repassa cada pergunta: o que você disse, o que faltou e como um sênior responderia. Depois, uma aula falada de 4 a 6 minutos.</p>
+                {debriefError && <p className="banner" role="alert">{debriefError}</p>}
+              </div>
+            )}
+            {debrief && (
+              <section className="debrief stack16">
+                <span className="hud accent">AULA SOBRE ESTA ENTREVISTA</span>
+                {debrief.perguntas.map((q, k) => (
+                  <article key={k} className="cgrade">
+                    <span className="hud">PERGUNTA {k + 1}</span>
+                    <p lang="en" className="resumo">{q.pergunta}</p>
+                    {q.suaResposta && <p><strong>O que você disse.</strong> {q.suaResposta}</p>}
+                    {q.faltou && <p><strong>O que faltou.</strong> {q.faltou}</p>}
+                    <div className="msg me">
+                      <span className="hud">COMO UM SÊNIOR RESPONDE</span>
+                      <pre lang="en" className="model">{q.respostaModelo}</pre>
+                      {hasVoice && <Ouvir key={`m${session.id}-${k}`} lang="en" label="Ouvir a resposta modelo" paragraphs={[q.respostaModelo]} />}
+                    </div>
+                  </article>
+                ))}
+                {debrief.aula.length > 0 && (
+                  <article className="cgrade">
+                    <span className="hud accent">AULA FALADA</span>
+                    {hasVoice && <Ouvir key={`a${session.id}`} lang="pt" label="Ouvir a aula" paragraphs={debrief.aula} />}
+                    <details open={!hasVoice}><summary className="hud">LER A AULA</summary>{debrief.aula.map((p, k) => <p key={k}>{p}</p>)}</details>
+                  </article>
+                )}
+              </section>
+            )}
+            <button className="ghost fit-w" onClick={onClose}>Voltar à vaga</button>
           </section>
         )}
         {error && <p className="banner" role="alert">{error}</p>}

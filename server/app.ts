@@ -187,12 +187,13 @@ export function createHandler(store: Store, opts: { staticDir?: string; fetcher?
         return json(res, 201, await training.start(jobId, stage));
       }
     }
-    const ss = path.match(/^\/api\/sessions\/(\d+)(?:\/(messages|finish))?$/);
+    const ss = path.match(/^\/api\/sessions\/(\d+)(?:\/(messages|finish|debrief))?$/);
     if (ss) {
       const id = Number(ss[1]);
       if (method === 'GET' && !ss[2]) return json(res, 200, training.session(id));
       if (method === 'POST' && ss[2] === 'messages') return json(res, 200, await training.reply(id, String((await body(req)).text ?? '')));
       if (method === 'POST' && ss[2] === 'finish') return json(res, 200, await training.finish(id));
+      if (method === 'POST' && ss[2] === 'debrief') return json(res, 200, await training.debrief(id));
     }
     throw new HttpError(404, 'Rota não encontrada');
   }

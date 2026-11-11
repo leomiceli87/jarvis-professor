@@ -2,7 +2,7 @@ import type { Store } from './db.ts';
 import { localDay } from './day.ts';
 import type { Job } from './types.ts';
 import { asReply, parseJson, type Llm, type LlmMessage, type WebSource } from './llm.ts';
-import { CANDIDATE, DOSSIER_SYSTEM, GRADER_SYSTEM, interviewerSystem, PROCESS_NOTES } from './prompts.ts';
+import { CANDIDATE, DEBRIEF_SYSTEM, DOSSIER_SYSTEM, GRADER_SYSTEM, interviewerSystem, PROCESS_NOTES } from './prompts.ts';
 
 export const BOSS = -1;
 export const BOSS_THRESHOLD = 70;
@@ -24,9 +24,12 @@ export interface Grade {
   notas: { correcao: number; complexidade: number; casosDeBorda: number; comunicacao: number; tempo: number };
   aprovado: boolean; resumo: string; conceitos: ConceptGrade[];
 }
+/** Aula depois da entrevista: pergunta por pergunta (o que você disse, o que faltou, resposta modelo) e a aula falada. */
+export interface DebriefQuestion { pergunta: string; suaResposta: string; faltou: string; respostaModelo: string }
+export interface Debrief { perguntas: DebriefQuestion[]; aula: string[]; createdAt: string }
 export interface Session {
   id: number; jobId: number; stage: number; status: 'aberta' | 'avaliada'; messages: LlmMessage[];
-  grade: Grade | null; startedAt: string; finishedAt: string | null;
+  grade: Grade | null; debrief: Debrief | null; startedAt: string; finishedAt: string | null;
 }
 
 export class TrainingError extends Error {
@@ -81,6 +84,8 @@ export class Training {
     this.store = store;
     this.llm = llm;
     store.db.exec(SCHEMA);
+    const cols = (store.db.prepare('PRAGMA table_info(sessions)').all() as any[]).map((c) => c.name);
+    if (!cols.includes('debrief')) store.db.exec('ALTER TABLE sessions ADD COLUMN debrief TEXT');
   }
 
   private needLlm(): Llm {
@@ -112,7 +117,8 @@ export class Training {
     if (!r) throw new TrainingError(404, 'Sessão não encontrada');
     return {
       id: r.id, jobId: r.job_id, stage: r.stage, status: r.status, messages: JSON.parse(r.messages),
-      grade: r.grade ? JSON.parse(r.grade) : null, startedAt: r.started_at, finishedAt: r.finished_at,
+      grade: r.grade ? JSON.parse(r.grade) : null, debrief: r.debrief ? JSON.parse(r.debrief) : null,
+      startedAt: r.started_at, finishedAt: r.finished_at,
     };
   }
   history(jobId: number): Omit<Session, 'messages'>[] {
@@ -284,5 +290,38 @@ export class Training {
     s.finishedAt = now.toISOString();
     this.save(s);
     return s;
+  }
+
+  /**
+   * Aula depois da entrevista avaliada. Aqui o professor ensina de verdade: o que você disse, o que faltou e como
+   * um sênior responderia cada pergunta, mais uma aula falada. Gera uma vez por sessão; pedir de novo devolve a mesma.
+   * Não mexe em conceitos nem em notas: a regra dos dois acertos em dias diferentes continua valendo na próxima sessão.
+   */
+  async debrief(sessionId: number, now: Date = new Date()): Promise<Debrief> {
+    const s = this.session(sessionId);
+    if (s.status !== 'avaliada' || !s.grade) throw new TrainingError(409, 'Encerre e avalie a sessão antes de pedir a aula');
+    if (s.debrief) return s.debrief;
+    const llm = this.needLlm();
+    const job = this.job(s.jobId);
+    const transcript = s.messages.map((m) => `${m.role === 'assistant' ? 'INTERVIEWER' : 'CANDIDATE'}:\n${m.content}`).join('\n\n');
+    const grade = s.grade.conceitos.filter((c) => c.avaliado)
+      .map((c) => `- ${c.nome}: ${c.passou ? 'passed' : 'FAILED'}. ${c.feedback}`).join('\n');
+    const text = asReply(await llm({
+      system: DEBRIEF_SYSTEM, maxTokens: 6000,
+      messages: [{ role: 'user', content:
+        `${CANDIDATE}\nCompany: ${job.company}\nRole: ${job.title}\n` +
+        `Grade summary: ${s.grade.resumo}\nConcepts:\n${grade || '- (none graded)'}\n\nTRANSCRIPT\n${transcript}` }],
+    })).text;
+    const raw = parseJson<{ perguntas?: unknown; aula?: unknown }>(text);
+    const clean = (v: unknown) => String(v ?? '').replace(/[#*_`>]/g, '').replace(/\s+/g, ' ').trim();
+    const perguntas = (Array.isArray(raw.perguntas) ? raw.perguntas : []).map((q: any): DebriefQuestion => ({
+      pergunta: clean(q?.pergunta), suaResposta: clean(q?.suaResposta), faltou: clean(q?.faltou), respostaModelo: clean(q?.respostaModelo),
+    })).filter((q) => q.pergunta && q.respostaModelo).slice(0, 6);
+    const aulaRaw = Array.isArray(raw.aula) ? raw.aula.map(clean) : String(raw.aula ?? '').split(/\n\s*\n/).map(clean);
+    const aula = aulaRaw.filter(Boolean);
+    if (perguntas.length === 0 && aula.length === 0) throw new TrainingError(502, 'O professor não conseguiu montar a aula. Tente de novo.');
+    const d: Debrief = { perguntas, aula, createdAt: now.toISOString() };
+    this.store.db.prepare('UPDATE sessions SET debrief = ? WHERE id = ?').run(JSON.stringify(d), s.id);
+    return d;
   }
 }

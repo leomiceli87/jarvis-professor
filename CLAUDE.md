@@ -18,7 +18,7 @@ Leo tem dislexia e TDAH. O treino só começa com o sistema pronto.
 
 Node 22.18+. `npm install`, `npm start`, abrir http://localhost:4317. Depois de mudar código do servidor, reiniciar.
 Voz local (opcional, Apple Silicon): instalar uma vez conforme `voice/README.md`; o `npm start` sobe a voz junto.
-`npm test` (74 testes, fuso fixo America/Toronto; um deles roda `dotnet test` de verdade), `npm run typecheck`, `npm run dev` (interface com recarga; `npm run server` em outro terminal).
+`npm test` (75 testes, fuso fixo America/Toronto; um deles roda `dotnet test` de verdade), `npm run typecheck`, `npm run dev` (interface com recarga; `npm run server` em outro terminal).
 
 ## Arquitetura
 
@@ -35,6 +35,10 @@ Voz local (opcional, Apple Silicon): instalar uma vez conforme `voice/README.md`
   O dossiê usa a busca na internet do Claude (`web_search_20260209`, até 8 buscas). Pergunta "relatada" só fica com esse
   rótulo se a URL estiver entre as páginas que a busca devolveu; senão vira "gerada". Sem fonte real, confiança baixa.
   Dossiê com mais de 90 dias aparece como vencido.
+  Aula pós-entrevista (`debrief`, `DEBRIEF_SYSTEM`, coluna `sessions.debrief`): só depois da avaliação, o professor repassa
+  cada pergunta (o que o Leo disse, o que faltou, resposta modelo em inglês) e escreve uma aula falada em português de 450 a
+  750 palavras. Gera uma vez por sessão. Não mexe em conceitos nem notas. Botões "Ouvir a avaliação", "Ouvir a resposta
+  modelo" e "Ouvir a aula" na tela da sessão. O entrevistador continua sem dar resposta durante a entrevista.
 - `server/bank.ts`: banco de perguntas (tabela `questions`), carregado de `data/perguntas.json` a cada início, sem duplicar.
   Cada pergunta tem matéria, tópico, origem (relatada ou comum), empresa, fonte com link e data. Duplicata: mesma empresa
   a partir de 0,4 de semelhança de palavras, entre fontes a partir de 0,65; nomes canônicos diferentes nunca se juntam.
@@ -124,6 +128,10 @@ Verificado ao vivo em 11 nov com a chave do Leo: dossiê da Omnissa com busca (5
 PracHub e LeetCode, cerca de 2,5 min) e uma sessão de treino da etapa 2: o entrevistador usou a pergunta relatada, recusou dar
 a resposta e a avaliação atualizou os conceitos. A sessão de teste foi apagada e o progresso zerado, porque quem respondeu foi
 o assistente, não o Leo. Modelo padrão `claude-sonnet-5-5`, trocável por `JARVIS_MODEL` no `.env`.
+
+Aula pós-entrevista verificada em 11 nov numa cópia do banco (apagada depois): sessão curta da etapa 1 da Omnissa, avaliação em
+9 s, aula em 23 s com 1 pergunta repassada, resposta modelo de 139 palavras e aula de 7 parágrafos (605 palavras), tudo baseado
+na transcrição real. Não ouvido pela voz na tela (o componente é o mesmo do Treino do dia).
 
 ## Próximos passos
 

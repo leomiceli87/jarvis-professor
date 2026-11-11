@@ -4,7 +4,7 @@ import { Store } from './db.ts';
 import { seedIfEmpty } from './seed.ts';
 import { BOSS, Training, TrainingError } from './training.ts';
 import { parseJson, type Llm, type LlmRequest } from './llm.ts';
-import { GRADER_SYSTEM, DOSSIER_SYSTEM } from './prompts.ts';
+import { DEBRIEF_SYSTEM, GRADER_SYSTEM, DOSSIER_SYSTEM } from './prompts.ts';
 
 const DOSSIER = { confianca: 'media', fonte: 'Relatos de candidatos.', etapas: [
   { titulo: 'C# prático', formato: 'HackerRank ao vivo', minutos: 45, conceitos: ['Dicionário para busca O(1)', 'Arredondamento com decimal'] },
@@ -21,6 +21,12 @@ function setup(passes: Record<string, boolean | null>) {
     if (req.system === GRADER_SYSTEM) {
       return JSON.stringify({ notas: { correcao: 3, complexidade: 9, casosDeBorda: 2, comunicacao: 3, tempo: -1 }, aprovado: true, resumo: 'Bom.',
         conceitos: Object.entries(passes).map(([nome, p]) => ({ nome, avaliado: p !== null, passou: p === true, feedback: 'ok', fundamento: 'F', exemploReal: 'E' })) });
+    }
+    if (req.system === DEBRIEF_SYSTEM) {
+      return JSON.stringify({ perguntas: [
+        { pergunta: 'Implement **ApplyPromotions**.', suaResposta: 'Usou um Dictionary.', faltou: 'Faltou falar de complexidade.', respostaModelo: 'I would index promotions by SKU in a Dictionary, O(1) per lookup.' },
+        { pergunta: 'sem resposta modelo', respostaModelo: '' },
+      ], aula: ['# Primeiro parágrafo.', '', 'Segundo parágrafo.'] });
     }
     return 'Question: implement ApplyPromotions.';
   };
@@ -97,6 +103,32 @@ test('avaliação: fecha com dois acertos em dias diferentes, erro reabre, não 
   passes['Dicionário para busca O(1)'] = false; // erro reabre
   await run(14);
   assert.deepEqual([dict().streak, dict().closed], [0, false]);
+});
+
+test('aula pós-entrevista: só depois da avaliação, recebe transcrição e notas, limpa e guarda uma vez', async () => {
+  const { t, jobId, calls } = setup({ 'Dicionário para busca O(1)': true, 'Arredondamento com decimal': false });
+  await t.buildDossier(jobId, day(11));
+  const s = await t.start(jobId, 0, day(11));
+  await t.reply(s.id, 'I would use a Dictionary.');
+  await assert.rejects(t.debrief(s.id), (e: TrainingError) => e.status === 409);
+  await t.finish(s.id, day(11));
+  assert.equal(t.session(s.id).debrief, null);
+
+  const d = await t.debrief(s.id, day(11));
+  const req = calls.at(-1)!;
+  assert.equal(req.system, DEBRIEF_SYSTEM);
+  assert.match(req.messages[0].content, /CANDIDATE:\nI would use a Dictionary\./);
+  assert.match(req.messages[0].content, /Arredondamento com decimal: FAILED/);
+  assert.equal(d.perguntas.length, 1, 'entrada sem resposta modelo cai fora');
+  assert.equal(d.perguntas[0].pergunta, 'Implement ApplyPromotions.');
+  assert.deepEqual(d.aula, ['Primeiro parágrafo.', 'Segundo parágrafo.']);
+
+  const n = calls.length;
+  assert.deepEqual(await t.debrief(s.id), d, 'pedir de novo devolve a mesma aula');
+  assert.equal(calls.length, n, 'sem nova chamada à API');
+  assert.deepEqual(t.session(s.id).debrief, d);
+  // A aula não mexe nos conceitos: a regra dos dois acertos em dias diferentes continua igual.
+  assert.equal(t.concepts(jobId).find((c) => c.name.startsWith('Dicionário'))!.streak, 1);
 });
 
 test('chefão: bloqueado abaixo de 70%, liberado depois, e cobre todas as etapas', async () => {

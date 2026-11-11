@@ -120,8 +120,8 @@ export const STATUS_LABEL: Record<Status, string> = {
 };
 
 // ---- treino
-import type { Concept, Dossier, Grade, Session } from '../../server/training.ts';
-export type { Concept, Dossier, Grade, Session };
+import type { Concept, Debrief, Dossier, Grade, Session } from '../../server/training.ts';
+export type { Concept, Debrief, Dossier, Grade, Session };
 export interface Overview {
   job: Job; dossier: Dossier | null; concepts: Concept[]; readiness: number; bossUnlocked: boolean; bossThreshold: number;
   bossPassed: boolean; sessions: Omit<Session, 'messages'>[]; llmReady: boolean; dossierStale: boolean;
@@ -133,4 +133,5 @@ export const training = {
   session: (id: number) => call<Session>('GET', `/api/sessions/${id}`),
   reply: (id: number, text: string) => call<Session>('POST', `/api/sessions/${id}/messages`, { text }),
   finish: (id: number) => call<Session>('POST', `/api/sessions/${id}/finish`, {}),
+  debrief: (id: number) => call<Debrief>('POST', `/api/sessions/${id}/debrief`, {}),
 };
