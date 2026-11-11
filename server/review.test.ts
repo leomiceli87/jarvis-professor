@@ -193,3 +193,31 @@ test('aula falada: o Claude escreve em parágrafos, sem markdown', async () => {
   const l = await review.lesson(id);
   assert.deepEqual(l.paragrafos, ['Título', 'Primeiro parágrafo.', 'Segundo parágrafo, com quebra.']);
 });
+
+test('ajuda numa pergunta aberta: degraus 1 e 2 só explicam; o 3 entrega a resposta modelo e já conta como erro; com dica, acerto vale no máximo "bom"', async () => {
+  const { HELP_SYSTEM } = await import('./prompts.ts');
+  const prompts: string[] = [];
+  const llm: Llm = async (req) => {
+    prompts.push(req.system + '\n' + req.messages[0].content);
+    if (req.system === HELP_SYSTEM) {
+      const nivel = Number(req.messages[0].content.match(/HELP LEVEL: (\d)/)?.[1]);
+      return JSON.stringify({ paragrafos: [`Degrau ${nivel}.`], codigo: null, respostaModelo: nivel === 3 ? 'Boxing wraps a value type in an object on the heap.' : null });
+    }
+    return JSON.stringify({ nota: 4, passou: true, feedback: 'Excelente.' });
+  };
+  const { review, bank } = setup(llm);
+  const qid = bank.list().find((q) => /boxing/.test(q.texto))!.id;
+
+  const h1 = await review.help(qid, 1, 'rascunho', T0);
+  assert.deepEqual([h1.paragrafos, h1.respostaModelo, h1.proximaEmDias], [['Degrau 1.'], null, null]);
+  assert.match(prompts.at(-1)!, /rascunho/);
+  assert.equal(review.card(qid), null, 'degrau 1 não mexe no FSRS');
+
+  const r = await review.answer(qid, 'A good answer.', 30, T0, 2);
+  assert.deepEqual([r.feedback.nota, r.rating], [4, 3], 'nota 4, mas com dica o FSRS recebe no máximo 3');
+
+  const h3 = await review.help(qid, 3, '', T0);
+  assert.match(h3.respostaModelo ?? '', /heap/);
+  assert.equal(h3.proximaEmDias, 0, 'pedir a resolução conta como erro: volta hoje');
+  assert.equal(review.card(qid)!.lapses, 1);
+});

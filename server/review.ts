@@ -4,6 +4,7 @@ import { Bank, MATERIAS, type BankQuestion } from './bank.ts';
 import { asReply, parseJson, type Llm } from './llm.ts';
 import { CANDIDATE, LESSON_SYSTEM, REVIEW_SYSTEM } from './prompts.ts';
 import { TrainingError } from './training.ts';
+import { askHelp, type Help, type HelpLevel } from './help.ts';
 
 // ---- FSRS-4.5 (Free Spaced Repetition Scheduler), pesos padrão publicados pelo projeto open-spaced-repetition.
 export type Rating = 1 | 2 | 3 | 4; // 1 errou, 2 difícil, 3 bom, 4 fácil
@@ -160,7 +161,22 @@ export class Review {
   }
 
   /** Corrige a resposta com o Claude, grava o histórico e reagenda a pergunta. */
-  async answer(questionId: number, text: string, seconds: number | null, now: Date = new Date()): Promise<AnswerResult> {
+  /**
+   * Degrau de ajuda numa pergunta aberta. 1 e 2 só explicam. O 3 entrega a resposta modelo e já conta como erro:
+   * a pergunta volta em 10 minutos para o Leo responder sozinho.
+   */
+  async help(questionId: number, nivel: HelpLevel, rascunho?: string, now: Date = new Date()): Promise<Help & { proximaEmDias: number | null }> {
+    const question = this.bank.list().find((q) => q.id === questionId);
+    if (!question) throw new TrainingError(404, 'Pergunta não encontrada');
+    const h = await askHelp(this.llm, question, nivel, { rascunho });
+    if (nivel < 3) return { ...h, proximaEmDias: null };
+    const res = this.record(question, rascunho?.trim() ? `[pediu a resolução] ${rascunho.trim()}` : '[pediu a resolução]', null,
+      { nota: 0, passou: false, feedback: 'Pediu a resolução guiada antes de responder.' }, 1, now);
+    return { ...h, proximaEmDias: res.proximaEmDias };
+  }
+
+  /** Corrige a resposta com o Claude, grava o histórico e reagenda a pergunta. Com dica (ajuda 2), o acerto vale no máximo "bom". */
+  async answer(questionId: number, text: string, seconds: number | null, now: Date = new Date(), ajuda = 0): Promise<AnswerResult> {
     if (!this.llm) throw new TrainingError(503, 'Falta a chave da API do Claude no arquivo .env.');
     const question = this.bank.list().find((q) => q.id === questionId);
     if (!question) throw new TrainingError(404, 'Pergunta não encontrada');
@@ -181,8 +197,9 @@ export class Review {
       fundamento: !passou && raw.fundamento ? String(raw.fundamento).trim() : undefined,
       exemploReal: !passou && raw.exemploReal ? String(raw.exemploReal).trim() : undefined,
     };
-    const rating = passou ? ratingFor(nota) : ratingFor(Math.min(nota, 2));
-    return this.record(question, answer, seconds, feedback, rating, now);
+    const base = passou ? ratingFor(nota) : ratingFor(Math.min(nota, 2));
+    const rating: Rating = ajuda >= 2 ? (Math.min(base, 3) as Rating) : base;
+    return this.record(question, ajuda >= 2 ? `[com dica] ${answer}` : answer, seconds, feedback, rating, now);
   }
 
   /** Aula falada sobre o fundamento da pergunta: texto em parágrafos, para a voz local ler. */

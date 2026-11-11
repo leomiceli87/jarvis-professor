@@ -14,6 +14,8 @@ import { Progress } from './progress.ts';
 import { FollowUps } from './followup.ts';
 import { VOICE_URL, voiceCall, voiceStatus } from './voice.ts';
 import { dotnetRunner, Exercises, type Runner } from './exercise.ts';
+import { Quizzes } from './quiz.ts';
+import { asLevel } from './help.ts';
 import { join as pathJoin } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -72,6 +74,7 @@ export function createHandler(store: Store, opts: { staticDir?: string; fetcher?
   const followups = new FollowUps(store, opts.llm ?? null);
   const exercises = new Exercises(store, bank, review, opts.llm ?? null,
     opts.runner ?? dotnetRunner(opts.exerciseDir ?? pathJoin(tmpdir(), 'jarvis-professor-exercicio')));
+  const quizzes = new Quizzes(store, bank, review, opts.llm ?? null);
   let running: Promise<unknown> | null = null;
 
   async function api(req: IncomingMessage, res: ServerResponse, path: string, query: URLSearchParams): Promise<void> {
@@ -159,21 +162,36 @@ export function createHandler(store: Store, opts: { staticDir?: string; fetcher?
       const b = await body(req);
       return json(res, 201, await exercises.create(Number(b.questionId)));
     }
-    const exm = path.match(/^\/api\/exercises\/(\d+)(?:\/(run|giveup))?$/);
+    const exq = path.match(/^\/api\/exercises\/question\/(\d+)$/);
+    if (method === 'GET' && exq) return json(res, 200, { exercicio: exercises.forQuestion(Number(exq[1])) });
+    const exm = path.match(/^\/api\/exercises\/(\d+)(?:\/(run|compile|help|reset|giveup))?$/);
     if (exm) {
       const id = Number(exm[1]);
       if (method === 'GET' && !exm[2]) return json(res, 200, exercises.get(id));
       if (method === 'POST' && exm[2] === 'run') return json(res, 200, await exercises.run(id, String((await body(req)).codigo ?? '')));
+      if (method === 'POST' && exm[2] === 'compile') return json(res, 200, await exercises.compile(id, String((await body(req)).codigo ?? '')));
+      if (method === 'POST' && exm[2] === 'help') { const b = await body(req); return json(res, 200, await exercises.help(id, asLevel(b.nivel), typeof b.codigo === 'string' ? b.codigo : undefined)); }
+      if (method === 'POST' && exm[2] === 'reset') return json(res, 200, exercises.reset(id));
       if (method === 'POST' && exm[2] === 'giveup') return json(res, 200, exercises.giveUp(id));
     }
+    const qz = path.match(/^\/api\/quiz\/(\d+)$/);
+    if (qz) {
+      if (method === 'GET') return json(res, 200, await quizzes.get(Number(qz[1])));
+      if (method === 'POST') {
+        const b = await body(req);
+        const seconds = Number.isFinite(Number(b.seconds)) ? Math.max(0, Math.round(Number(b.seconds))) : null;
+        return json(res, 200, quizzes.answer(Number(qz[1]), Number(b.escolha), seconds));
+      }
+    }
     if (method === 'GET' && path === '/api/review') return json(res, 200, review.queue(new Date(), query.get('materia') ?? undefined));
-    const ls = path.match(/^\/api\/review\/(\d+)\/lesson$/);
-    if (method === 'POST' && ls) return json(res, 200, await review.lesson(Number(ls[1])));
+    const ls = path.match(/^\/api\/review\/(\d+)\/(lesson|help)$/);
+    if (method === 'POST' && ls && ls[2] === 'lesson') return json(res, 200, await review.lesson(Number(ls[1])));
+    if (method === 'POST' && ls && ls[2] === 'help') { const b = await body(req); return json(res, 200, await review.help(Number(ls[1]), asLevel(b.nivel), typeof b.rascunho === 'string' ? b.rascunho : undefined)); }
     const rv = path.match(/^\/api\/review\/(\d+)$/);
     if (method === 'POST' && rv) {
       const b = await body(req);
       const seconds = Number.isFinite(Number(b.seconds)) ? Math.max(0, Math.round(Number(b.seconds))) : null;
-      return json(res, 200, await review.answer(Number(rv[1]), String(b.text ?? ''), seconds));
+      return json(res, 200, await review.answer(Number(rv[1]), String(b.text ?? ''), seconds, new Date(), Number(b.ajuda) || 0));
     }
     const tr = path.match(/^\/api\/jobs\/(\d+)\/(training|dossier|sessions)$/);
     if (tr) {

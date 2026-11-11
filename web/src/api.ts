@@ -51,17 +51,30 @@ export interface ReviewFeedback { nota: number; passou: boolean; feedback: strin
 export interface AnswerResult { feedback: ReviewFeedback; rating: number; proximaEmDias: number }
 export interface TestResult { nome: string; passou: boolean; mensagem: string | null }
 export interface RunResult { compilou: boolean; erros: string[]; testes: TestResult[]; passaram: number; total: number; estourouTempo: boolean }
+export type HelpLevel = 1 | 2 | 3;
+export interface Help { nivel: HelpLevel; paragrafos: string[]; codigo: string | null; respostaModelo: string | null }
+export interface CompileError { arquivo: string; linha: number | null; coluna: number | null; mensagem: string }
 export interface Exercise {
   id: number; questionId: number; titulo: string; enunciado: string; esqueleto: string; testes: string; codigo: string;
-  tentativas: number; concluido: boolean; ultimo: RunResult | null; createdAt: string;
+  tentativas: number; concluido: boolean; ultimo: RunResult | null; createdAt: string; ajudas: Help[];
 }
 export interface ExerciseListItem { question: BankQuestion; exercicio: { id: number; concluido: boolean; tentativas: number } | null }
 export const exercises = {
   list: (materia?: string) => call<{ itens: ExerciseListItem[]; llmReady: boolean }>('GET', `/api/exercises${materia ? `?materia=${encodeURIComponent(materia)}` : ''}`),
   create: (questionId: number) => call<Exercise>('POST', '/api/exercises', { questionId }),
+  forQuestion: (questionId: number) => call<{ exercicio: Exercise | null }>('GET', `/api/exercises/question/${questionId}`),
   get: (id: number) => call<Exercise>('GET', `/api/exercises/${id}`),
   run: (id: number, codigo: string) => call<Exercise & { avaliacao: { rating: number; proximaEmDias: number } | null }>('POST', `/api/exercises/${id}/run`, { codigo }),
+  compile: (id: number, codigo: string) => call<{ compilou: boolean; erros: CompileError[]; estourouTempo: boolean }>('POST', `/api/exercises/${id}/compile`, { codigo }),
+  help: (id: number, nivel: HelpLevel, codigo: string) => call<Help>('POST', `/api/exercises/${id}/help`, { nivel, codigo }),
+  reset: (id: number) => call<Exercise>('POST', `/api/exercises/${id}/reset`, {}),
   giveUp: (id: number) => call<{ proximaEmDias: number }>('POST', `/api/exercises/${id}/giveup`, {}),
+};
+export interface Quiz { questionId: number; enunciado: string; opcoes: string[]; createdAt: string }
+export interface QuizResult { correta: number; escolha: number; passou: boolean; explicacoes: string[]; proximaEmDias: number }
+export const quiz = {
+  get: (questionId: number) => call<Quiz>('GET', `/api/quiz/${questionId}`),
+  answer: (questionId: number, escolha: number, seconds: number) => call<QuizResult>('POST', `/api/quiz/${questionId}`, { escolha, seconds }),
 };
 
 export interface ProgressView {
@@ -99,7 +112,8 @@ export const voice = {
 export const review = {
   lesson: (id: number) => call<{ texto: string; paragrafos: string[] }>('POST', `/api/review/${id}/lesson`, {}),
   queue: (materia?: string) => call<ReviewQueue>('GET', `/api/review${materia ? `?materia=${encodeURIComponent(materia)}` : ''}`),
-  answer: (id: number, text: string, seconds: number) => call<AnswerResult>('POST', `/api/review/${id}`, { text, seconds }),
+  answer: (id: number, text: string, seconds: number, ajuda = 0) => call<AnswerResult>('POST', `/api/review/${id}`, { text, seconds, ajuda }),
+  help: (id: number, nivel: HelpLevel, rascunho: string) => call<Help & { proximaEmDias: number | null }>('POST', `/api/review/${id}/help`, { nivel, rascunho }),
 };
 
 const MONTHS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];

@@ -8,12 +8,22 @@ import { asReply, parseJson, type Llm } from './llm.ts';
 import { EXERCISE_SYSTEM } from './prompts.ts';
 import { TrainingError } from './training.ts';
 import type { Rating, Review } from './review.ts';
+import { askHelp, type Help, type HelpLevel } from './help.ts';
 
 // ---- rodar dotnet test
 
 export interface TestResult { nome: string; passou: boolean; mensagem: string | null }
 export interface RunResult { compilou: boolean; erros: string[]; testes: TestResult[]; passaram: number; total: number; estourouTempo: boolean }
-export type Runner = (solution: string, tests: string) => Promise<RunResult>;
+/** 'test' roda os testes; 'build' só compila (rápido, para conferir a sintaxe sem contar tentativa). */
+export type Runner = (solution: string, tests: string, mode?: 'test' | 'build') => Promise<RunResult>;
+/** Erro de compilação com a linha, para a tela marcar no editor. */
+export interface CompileError { arquivo: string; linha: number | null; coluna: number | null; mensagem: string }
+export function compileErrorLines(erros: string[]): CompileError[] {
+  return erros.map((e) => {
+    const m = e.match(/^(Solution|Tests)\.cs\((\d+),(\d+)\):\s*(.*)$/);
+    return m ? { arquivo: m[1], linha: Number(m[2]), coluna: Number(m[3]), mensagem: m[4] } : { arquivo: 'Solution', linha: null, coluna: null, mensagem: e };
+  });
+}
 
 /** Pacotes que já estão no cache do NuGet desta máquina: o projeto restaura sem baixar nada. */
 const CSPROJ = `<Project Sdk="Microsoft.NET.Sdk">
@@ -64,7 +74,7 @@ let queue: Promise<unknown> = Promise.resolve();
 
 /** Roda os testes numa pasta fixa (build incremental rápido). Um por vez. */
 export function dotnetRunner(workdir: string, timeoutMs = 60_000): Runner {
-  return (solution, tests) => {
+  return (solution, tests, mode = 'test') => {
     const job = queue.then(async (): Promise<RunResult> => {
       mkdirSync(workdir, { recursive: true });
       const csproj = join(workdir, 'Exercise.csproj');
@@ -76,6 +86,11 @@ export function dotnetRunner(workdir: string, timeoutMs = 60_000): Runner {
       writeFileSync(join(workdir, 'Solution.cs'), solution);
       writeFileSync(join(workdir, 'Tests.cs'), tests);
       rmSync(join(workdir, 'out'), { recursive: true, force: true });
+      if (mode === 'build') {
+        const b = await run(['build', '--no-restore', '-nologo', '-v', 'q'], workdir, timeoutMs);
+        const erros = parseCompileErrors(b.out);
+        return { compilou: erros.length === 0 && b.code === 0, erros, testes: [], passaram: 0, total: 0, estourouTempo: b.killed };
+      }
       const r = await run(['test', '--no-restore', '--logger', 'trx;LogFileName=r.trx', '--results-directory', 'out'], workdir, timeoutMs);
       const erros = parseCompileErrors(r.out);
       const trxPath = join(workdir, 'out', 'r.trx');
@@ -96,6 +111,8 @@ const FORBIDDEN = /\b(System\.IO|File\.|Directory\.|Process\.Start|new Process\b
 export interface Exercise {
   id: number; questionId: number; titulo: string; enunciado: string; esqueleto: string; testes: string;
   codigo: string; tentativas: number; concluido: boolean; ultimo: RunResult | null; createdAt: string;
+  /** Degraus de ajuda já pedidos nesta tentativa do exercício. O maior nível limita a nota quando os testes passam. */
+  ajudas: Help[];
 }
 
 const SCHEMA = `
@@ -111,6 +128,8 @@ export class Exercises {
   constructor(store: Store, bank: Bank, review: Review, llm: Llm | null, runner: Runner) {
     this.store = store; this.bank = bank; this.review = review; this.llm = llm; this.runner = runner;
     store.db.exec(SCHEMA);
+    const cols = (store.db.prepare('PRAGMA table_info(exercises)').all() as any[]).map((c) => c.name);
+    if (!cols.includes('ajudas')) store.db.exec("ALTER TABLE exercises ADD COLUMN ajudas TEXT NOT NULL DEFAULT '[]'");
   }
 
   get(id: number): Exercise {
@@ -119,7 +138,42 @@ export class Exercises {
     return {
       id: r.id, questionId: r.question_id, titulo: r.titulo, enunciado: r.enunciado, esqueleto: r.esqueleto, testes: r.testes,
       codigo: r.codigo, tentativas: r.tentativas, concluido: r.concluido === 1, ultimo: r.ultimo ? JSON.parse(r.ultimo) : null, createdAt: r.created_at,
+      ajudas: JSON.parse(r.ajudas ?? '[]'),
     };
+  }
+  /** O exercício gerado para a pergunta, se houver. */
+  forQuestion(questionId: number): Exercise | null {
+    const r = this.store.db.prepare('SELECT id FROM exercises WHERE question_id = ? ORDER BY id DESC').get(questionId) as any;
+    return r ? this.get(r.id) : null;
+  }
+
+  /** Só compila: confere a sintaxe em segundos, guarda o rascunho e não conta tentativa. */
+  async compile(id: number, codigo: string): Promise<{ compilou: boolean; erros: CompileError[]; estourouTempo: boolean }> {
+    const ex = this.get(id);
+    if (!codigo.trim()) throw new TrainingError(400, 'Escreva o seu código');
+    if (codigo.length > 100_000) throw new TrainingError(413, 'Código grande demais');
+    const r = await this.runner(codigo, ex.testes, 'build');
+    this.store.db.prepare('UPDATE exercises SET codigo = ? WHERE id = ?').run(codigo, id);
+    return { compilou: r.compilou, erros: compileErrorLines(r.erros), estourouTempo: r.estourouTempo };
+  }
+
+  /** Degrau de ajuda. Cada degrau é pedido uma vez; pedir de novo devolve o mesmo. O degrau 3 traz a solução. */
+  async help(id: number, nivel: HelpLevel, rascunho?: string): Promise<Help> {
+    const ex = this.get(id);
+    const have = ex.ajudas.find((h) => h.nivel === nivel);
+    if (have) return have;
+    const q = this.question(ex.questionId);
+    const h = await askHelp(this.llm, q, nivel, { enunciado: ex.enunciado, esqueleto: ex.esqueleto, testes: ex.testes, rascunho: rascunho ?? ex.codigo });
+    const ajudas = [...ex.ajudas, h].sort((a, b) => a.nivel - b.nivel);
+    this.store.db.prepare('UPDATE exercises SET ajudas = ? WHERE id = ?').run(JSON.stringify(ajudas), id);
+    return h;
+  }
+
+  /** Volta ao esqueleto: zera tentativas, ajudas e resultado. Para refazer sozinho depois de uma resolução guiada. */
+  reset(id: number): Exercise {
+    const ex = this.get(id);
+    this.store.db.prepare("UPDATE exercises SET codigo = esqueleto, tentativas = 0, concluido = 0, ultimo = NULL, ajudas = '[]' WHERE id = ?").run(id);
+    return { ...this.get(id), codigo: ex.esqueleto };
   }
 
   /** Lista para a tela: perguntas de código do banco, com o exercício já gerado quando houver. */
@@ -181,10 +235,14 @@ export class Exercises {
     const tentativas = ex.tentativas + 1;
     let avaliacao: { rating: Rating; proximaEmDias: number } | null = null;
     if (tudo && !ex.concluido) {
-      const rating: Rating = tentativas === 1 ? 4 : tentativas <= 3 ? 3 : 2;
+      // Tentativas: 1 = fácil, até 3 = bom, mais = difícil. Com dica, no máximo bom. Com resolução guiada, difícil: volta logo.
+      const ajuda = Math.max(0, ...ex.ajudas.map((h) => h.nivel));
+      const porTentativas: Rating = tentativas === 1 ? 4 : tentativas <= 3 ? 3 : 2;
+      const rating: Rating = ajuda >= 3 ? 2 : ajuda === 2 ? (Math.min(porTentativas, 3) as Rating) : porTentativas;
       const q = this.question(ex.questionId);
+      const como = ajuda >= 3 ? ' depois da resolução guiada' : ajuda === 2 ? ' com dica' : '';
       const res = this.review.record(q, codigo, null,
-        { nota: rating === 4 ? 4 : rating === 3 ? 3 : 2, passou: rating >= 3, feedback: `Todos os ${r.total} testes passaram em ${tentativas} tentativa(s).` }, rating, now);
+        { nota: rating, passou: rating >= 3, feedback: `Todos os ${r.total} testes passaram em ${tentativas} tentativa(s)${como}.` }, rating, now);
       avaliacao = { rating, proximaEmDias: res.proximaEmDias };
     }
     this.store.db.prepare('UPDATE exercises SET codigo = ?, tentativas = ?, concluido = ?, ultimo = ? WHERE id = ?')

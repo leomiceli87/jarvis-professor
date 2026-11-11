@@ -18,7 +18,7 @@ Leo tem dislexia e TDAH. O treino só começa com o sistema pronto.
 
 Node 22.18+. `npm install`, `npm start`, abrir http://localhost:4317. Depois de mudar código do servidor, reiniciar.
 Voz local (opcional, Apple Silicon): instalar uma vez conforme `voice/README.md`; o `npm start` sobe a voz junto.
-`npm test` (75 testes, fuso fixo America/Toronto; um deles roda `dotnet test` de verdade), `npm run typecheck`, `npm run dev` (interface com recarga; `npm run server` em outro terminal).
+`npm test` (79 testes, fuso fixo America/Toronto; um deles roda `dotnet test` de verdade), `npm run typecheck`, `npm run dev` (interface com recarga; `npm run server` em outro terminal).
 
 ## Arquitetura
 
@@ -57,6 +57,16 @@ Voz local (opcional, Apple Silicon): instalar uma vez conforme `voice/README.md`
   disco, rede, processos ou ambiente (uma nova chance com o erro do compilador). O código do Leo roda com `dotnet test`
   (net8.0, xUnit 2.9.3, runner 2.8.2, Test SDK 17.14.1, já no cache do NuGet: restaura sem rede) em `data/exercicio/`,
   um por vez, 60 s de limite. Tudo passando entra no FSRS: 1 tentativa = fácil, até 3 = bom, mais = difícil; desistir = erro.
+  "Compilar" só faz `dotnet build` (não conta tentativa) e devolve a linha do erro, que o editor marca. Editor: CodeMirror 6
+  com o modo C# legado (`web/src/Editor.tsx`). O exercício abre dentro do Treino do dia (`web/src/Exercicio.tsx`), com os
+  testes em palavras ("Add · two positives · returns sum"); a tela "Código" usa o mesmo componente.
+- `server/help.ts`: "Estou confuso" em três degraus (`HELP_SYSTEM`), para exercício e pergunta aberta. 1 entender a pergunta
+  (grátis); 2 dica de abordagem (acerto vale no máximo "bom"); 3 resolução guiada (no exercício, tudo passando vale "difícil";
+  na pergunta aberta, já conta como erro e mostra a resposta modelo). Cada degrau é gerado uma vez por exercício (`exercises.ajudas`);
+  "Refazer do zero" volta ao esqueleto e zera tentativas e ajudas.
+- `server/quiz.ts`: múltipla escolha gerada pelo professor (`QUIZ_SYSTEM`) só para perguntas conceituais, tabela `quizzes`,
+  uma por pergunta, alternativas embaralhadas e a certa nunca vai para a tela antes da escolha. Acerto vale 3 ("bom"), erro 1.
+  Na tela, "Modo rápido" (lembrado no navegador), teclas 1 a 4, explicação de cada alternativa depois. Rotulada como gerada.
 - `server/progress.ts` + `server/day.ts`: o jogo. Dia é sempre o dia local (`localDay`), nunca UTC. Semana de segunda a
   domingo, meta de 4 dias com treino (resposta no Treino do dia, exercício ou sessão avaliada); sequência = semanas seguidas
   com a meta batida (a atual só conta depois de bater). Módulos = as 8 matérias, 4 níveis por parte de perguntas firmes
@@ -132,6 +142,11 @@ o assistente, não o Leo. Modelo padrão `claude-sonnet-5-5`, trocável por `JAR
 Aula pós-entrevista verificada em 11 nov numa cópia do banco (apagada depois): sessão curta da etapa 1 da Omnissa, avaliação em
 9 s, aula em 23 s com 1 pergunta repassada, resposta modelo de 139 palavras e aula de 7 parágrafos (605 palavras), tudo baseado
 na transcrição real. Não ouvido pela voz na tela (o componente é o mesmo do Treino do dia).
+
+Pergunta de código no Treino do dia verificada em 11 nov numa cópia do banco (apagada depois): exercício aberto na própria tela,
+editor com cores e números de linha, "Compilar" marcou a linha 7 com `CS1002: ; expected`, degrau 1 da ajuda na tela, degrau 3
+pela API em 15 s (7 parágrafos e solução de 51 linhas) e, com ela, os 11 testes passaram valendo "difícil" (volta em 1 dia).
+Múltipla escolha gerada em 6 s para a pergunta de Kubernetes, com explicação por alternativa; não vista na tela, só pela API.
 
 ## Próximos passos
 

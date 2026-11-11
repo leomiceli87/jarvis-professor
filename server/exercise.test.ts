@@ -89,7 +89,45 @@ test('exercício: tudo passando entra no FSRS pelo número de tentativas; desist
   await assert.rejects(ex.run(e.id, '  ', T0), (err: TrainingError) => err.status === 400);
 });
 
-const hasDotnet = (() => { try { execFileSync('dotnet', ['--version'], { stdio: 'ignore' }); return true; } catch { return false; } })();
+test('compilar: só build, guarda o rascunho, não conta tentativa e devolve a linha do erro', async () => {
+  const { ex, qid, calls } = setup([exJson()], [result(0), result(0, 2, false)]);
+  const e = await ex.create(qid, T0);
+  const modes: string[] = [];
+  ex.runner = async (s, t, mode) => { modes.push(mode ?? 'test'); return result(0, 2, false); };
+  const c = await ex.compile(e.id, 'namespace Exercise; broken');
+  assert.deepEqual(modes, ['build']);
+  assert.equal(c.compilou, false);
+  assert.deepEqual(c.erros[0], { arquivo: 'Solution', linha: 1, coluna: 1, mensagem: 'error CS0001: boom' });
+  const again = ex.get(e.id);
+  assert.deepEqual([again.tentativas, again.codigo], [0, 'namespace Exercise; broken']);
+  assert.equal(calls.length, 1);
+});
+
+test('ajuda em degraus: cada degrau uma vez; dica limita a "bom", resolução guiada vale "difícil"; refazer zera', async () => {
+  const HELP = (nivel: number) => JSON.stringify({ paragrafos: [`Ajuda ${nivel}.`], codigo: nivel === 3 ? 'namespace Exercise; public class Solution { public int Add(int a, int b) => a + b; }' : null });
+  const { ex, qid, review, prompts } = setup([exJson(), HELP(1), HELP(2), HELP(3)], [result(0), result(2), result(2)]);
+  const e = await ex.create(qid, T0);
+  const h1 = await ex.help(e.id, 1, 'my draft');
+  assert.deepEqual([h1.nivel, h1.paragrafos, h1.codigo], [1, ['Ajuda 1.'], null]);
+  assert.match(prompts.at(-1)!, /HELP LEVEL: 1/);
+  assert.match(prompts.at(-1)!, /my draft/);
+  assert.deepEqual(await ex.help(e.id, 1), h1, 'pedir de novo devolve o mesmo, sem nova chamada');
+  assert.equal(prompts.length, 2);
+
+  await ex.help(e.id, 2);
+  const r2 = await ex.run(e.id, GOOD, T0);
+  assert.equal(r2.avaliacao?.rating, 3, 'primeira tentativa valeria 4; com dica vale no máximo 3');
+
+  const reset = ex.reset(e.id);
+  assert.deepEqual([reset.tentativas, reset.concluido, reset.ajudas, reset.codigo], [0, false, [], STARTER]);
+  const h3 = await ex.help(e.id, 3);
+  assert.match(h3.codigo ?? '', /a \+ b/);
+  const r3 = await ex.run(e.id, GOOD, T0);
+  assert.equal(r3.avaliacao?.rating, 2, 'com a resolução guiada vale difícil: volta logo');
+  assert.equal(review.card(qid)!.reps, 2);
+});
+
+const hasDotnet =(() => { try { execFileSync('dotnet', ['--version'], { stdio: 'ignore' }); return true; } catch { return false; } })();
 
 test('dotnet de verdade: esqueleto falha, solução passa, erro de compilação aparece', { skip: !hasDotnet && 'dotnet não instalado', timeout: 240_000 }, async () => {
   const run = dotnetRunner(mkdtempSync(join(tmpdir(), 'jarvis-ex-')));
