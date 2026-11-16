@@ -5,8 +5,12 @@ import { voice, type Spoken } from './api.ts';
  * Ouvir um texto com legenda: lê parágrafo por parágrafo (pede o próximo enquanto o atual toca)
  * e acende a palavra que está sendo falada.
  */
-export function Ouvir({ paragraphs, lang, label = 'Ouvir', autoPlay = false }: { paragraphs: string[]; lang: 'en' | 'pt'; label?: string; autoPlay?: boolean }) {
+export function Ouvir({ paragraphs, lang, label = 'Ouvir', autoPlay = false, compact = false, onState }: {
+  paragraphs: string[]; lang: 'en' | 'pt'; label?: string; autoPlay?: boolean; compact?: boolean;
+  onState?: (s: 'parado' | 'carregando' | 'tocando') => void;
+}) {
   const [state, setState] = useState<'parado' | 'carregando' | 'tocando'>('parado');
+  useEffect(() => { onState?.(state); }, [state, onState]);
   const [cur, setCur] = useState<{ p: number; spoken: Spoken | null; word: number }>({ p: 0, spoken: null, word: -1 });
   const [error, setError] = useState<string | null>(null);
   const [speed, setSpeed] = useState(1);
@@ -59,7 +63,7 @@ export function Ouvir({ paragraphs, lang, label = 'Ouvir', autoPlay = false }: {
 
   return (
     <div className="ouvir">
-      <div className="ouvir-bar">
+      {!compact && <div className="ouvir-bar">
         {state === 'parado'
           ? <button className="ghost small-btn" onClick={play} aria-label={`${label} em ${lang === 'en' ? 'inglês' : 'português'}`}>▶ {label}</button>
           : <button className="ghost small-btn" onClick={stop}>■ Parar</button>}
@@ -68,8 +72,8 @@ export function Ouvir({ paragraphs, lang, label = 'Ouvir', autoPlay = false }: {
         </div>
         {state === 'carregando' && <span className="hud">PREPARANDO A VOZ…</span>}
         {state === 'tocando' && paragraphs.length > 1 && <span className="hud">PARTE {cur.p + 1} DE {paragraphs.length}</span>}
-      </div>
-      {state === 'tocando' && cur.spoken && (
+      </div>}
+      {!compact && state === 'tocando' && cur.spoken && (
         <p className="legenda" lang={lang} aria-live="off">
           {cur.spoken.words.map((x, i) => <span key={i} className={i === cur.word ? 'w on' : i < cur.word ? 'w past' : 'w'}>{x.w} </span>)}
         </p>

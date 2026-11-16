@@ -9,7 +9,7 @@ const NOTA: [keyof NonNullable<Session['grade']>['notas'], string][] = [
 const CONF = { alta: 'Confiança alta', media: 'Confiança média', baixa: 'Confiança baixa' } as const;
 const host = (url: string) => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return url; } };
 
-export function Treino({ jobId, back }: { jobId: number; back: () => void }) {
+export function Treino({ jobId, back, onLive }: { jobId: number; back: () => void; onLive?: (live: boolean) => void }) {
   const [o, setO] = useState<Overview | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -20,6 +20,7 @@ export function Treino({ jobId, back }: { jobId: number; back: () => void }) {
     try { setO(await training.overview(jobId)); } catch (e) { setError(msg(e)); }
   }, [jobId]);
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => { onLive?.(session !== null); }, [onLive, session]);
 
   async function act<T>(label: string, fn: () => Promise<T>): Promise<T | null> {
     setBusy(label); setError(null);

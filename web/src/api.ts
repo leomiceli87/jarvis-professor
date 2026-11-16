@@ -115,6 +115,19 @@ export const profile = {
 };
 export const progress = { get: () => call<ProgressView>('GET', '/api/progress') };
 
+export type Tela = 'radar' | 'dia' | 'progresso' | 'codigo' | 'perguntas' | 'candidaturas' | 'filtros';
+export interface PresencaView {
+  frase: string; podeEnsinar: boolean; modo: 'aula' | 'entrevista'; tema: string; questionId: number | null;
+}
+export const presencaApi = {
+  get: (tela: Tela, entrevista: boolean, jobId: number | null) => {
+    const q = new URLSearchParams({ tela, entrevista: entrevista ? '1' : '0' });
+    if (jobId) q.set('jobId', String(jobId));
+    return call<PresencaView>('GET', `/api/presenca?${q}`);
+  },
+  ensinar: (tela: Tela, jobId: number | null) => call<{ paragrafos: string[] }>('POST', '/api/presenca/ensinar', { tela, jobId }),
+};
+
 export interface Draft { linkedin: string; assunto: string; email: string }
 export interface FollowUpStep { step: 0 | 5 | 12; vence: string; vencido: boolean; rascunho: Draft | null; enviadoEm: string | null }
 export interface FollowUpItem {

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { bank, type BankView } from './api.ts';
 
 const host = (url: string) => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return url; } };
-const PAGE = 40;
+const PAGE = 7;
 
 /** Banco de perguntas: filtra por matéria, empresa e origem. Pergunta em inglês, rótulo e fonte embaixo. */
 export function Perguntas() {
@@ -41,13 +41,13 @@ export function Perguntas() {
         <span className="hud">{v.total} PERGUNTAS · {v.relatadas} RELATADAS POR CANDIDATOS</span>
       </section>
       <section className="qfilters">
-        <div className="seg" role="group" aria-label="Matéria">
-          <button className={materia === '' ? 'on' : ''} onClick={() => setMateria('')}>Todas</button>
-          {Object.entries(v.materias).map(([k, label]) => (
-            <button key={k} className={materia === k ? 'on' : ''} onClick={() => setMateria(k)}>{label} · {v.porMateria[k] ?? 0}</button>
-          ))}
-        </div>
         <div className="chips">
+          <select aria-label="Matéria" value={materia} onChange={(e) => setMateria(e.target.value)}>
+            <option value="">Todas as matérias · {v.total}</option>
+            {Object.entries(v.materias).map(([k, label]) => (
+              <option key={k} value={k}>{label} · {v.porMateria[k] ?? 0}</option>
+            ))}
+          </select>
           <select aria-label="Empresa" value={empresa} onChange={(e) => setEmpresa(e.target.value)}>
             <option value="">Todas as empresas</option>
             {empresas.map(([e, n]) => <option key={e} value={e}>{e} · {n}</option>)}
