@@ -8,7 +8,7 @@ import { runRadar } from './radar.ts';
 import { httpFetcher, workdayToken, type Fetcher } from './collectors/index.ts';
 import type { Llm } from './llm.ts';
 import { BOSS, Training, TrainingError } from './training.ts';
-import { Bank } from './bank.ts';
+import { Bank, type BankQuestion } from './bank.ts';
 import { Review } from './review.ts';
 import { Progress } from './progress.ts';
 import { FollowUps } from './followup.ts';
@@ -19,6 +19,7 @@ import type { Professor } from './providers.ts';
 import { Profiles } from './profile.ts';
 import { extractResumeText, RESUME_MAX_BYTES } from './resume.ts';
 import { asLevel } from './help.ts';
+import { asTela, ensinar, moduloMaisBaixo, montarPresenca, type PresencaIn } from './presenca.ts';
 import { join as pathJoin } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -176,6 +177,40 @@ export function createHandler(store: Store, opts: { staticDir?: string; fetcher?
       return json(res, 200, await followups.draft(jobId, step));
     }
     if (method === 'GET' && path === '/api/progress') return json(res, 200, progress.summary());
+
+    const contexto = (tela: ReturnType<typeof asTela>, entrevista: boolean, jobId: number | null): { view: ReturnType<typeof montarPresenca>; pergunta: BankQuestion | null } => {
+      const fila = tela === 'dia' ? review.queue() : null;
+      const item = fila?.items[0] ?? null;
+      const prog = tela === 'progresso' ? progress.summary() : null;
+      const jobs = tela === 'radar' ? listJobs(store) : [];
+      const visiveis = jobs.filter((j) => j.eval.visible && j.status !== 'descartada');
+      const vaga = (jobId ? jobs.find((j) => j.id === jobId) : null) ?? visiveis[0] ?? null;
+      const entrada: PresencaIn = {
+        entrevista, tela, llm: opts.llm != null,
+        vencidas: fila?.vencidas ?? 0, topico: item?.question.topico ?? null, questionId: item?.question.id ?? null,
+        empresa: vaga?.company ?? null, lacuna: vaga?.fitGaps[0] ?? null,
+        faltam: prog?.faltam ?? null, metaBatida: prog?.metaBatida ?? false,
+        modulo: prog ? moduloMaisBaixo(prog.modulos) : null,
+        paraHoje: tela === 'candidaturas' ? followups.list().paraHoje : 0,
+      };
+      const view = montarPresenca(entrada);
+      const pergunta = view.questionId != null ? bank.list().find((q) => q.id === view.questionId) ?? null : null;
+      return { view, pergunta };
+    };
+    if (method === 'GET' && path === '/api/presenca') {
+      const tela = asTela(query.get('tela'));
+      const jobId = Number(query.get('jobId'));
+      return json(res, 200, contexto(tela, query.get('entrevista') === '1', Number.isInteger(jobId) && jobId > 0 ? jobId : null).view);
+    }
+    if (method === 'POST' && path === '/api/presenca/ensinar') {
+      const b = await body(req);
+      const tela = asTela(b.tela);
+      const jobId = Number(b.jobId);
+      const { view, pergunta } = contexto(tela, b.entrevista === true, Number.isInteger(jobId) && jobId > 0 ? jobId : null);
+      const exercicio = pergunta?.formato === 'codigo' ? exercises.forQuestion(pergunta.id) : null;
+      const pronta = exercicio ? (await exercises.help(exercicio.id, 1)).paragrafos : null;
+      return json(res, 200, await ensinar(opts.llm ?? null, view, pergunta, pronta));
+    }
     // O professor: provedor e modelo em uso, modelos disponíveis para a chave, troca de modelo sem reiniciar.
     if (path === '/api/llm') {
       const p = opts.professor;

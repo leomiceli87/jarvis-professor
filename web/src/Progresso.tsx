@@ -10,6 +10,9 @@ export function Progresso({ openTraining }: { openTraining: (jobId: number) => v
   useEffect(() => { progress.get().then(setP).catch((e) => setError(e instanceof Error ? e.message : 'Erro')); }, []);
   if (!p) return <main className="dia">{error ? <p className="banner" role="alert">{error}</p> : <p className="loading">Carregando…</p>}</main>;
 
+  const baixo = p.modulos.reduce((a, m) => (m.nivel !== a.nivel ? (m.nivel < a.nivel ? m : a) : m.firmes < a.firmes ? m : a));
+  const unico = p.modulos.filter((m) => m.nivel === baixo.nivel && m.firmes === baixo.firmes).length === 1;
+
   return (
     <main className="dia progresso">
       <section className="bar">
@@ -34,7 +37,7 @@ export function Progresso({ openTraining }: { openTraining: (jobId: number) => v
         <span className="hud">MÓDULOS · ACENDEM QUANDO AS PERGUNTAS FICAM FIRMES (O FSRS ESPAÇA POR 7 DIAS OU MAIS)</span>
         <div className="modulos">
           {p.modulos.map((m) => (
-            <article key={m.materia} className={m.nivel > 0 ? 'modulo lit' : 'modulo'}>
+            <article key={m.materia} className={`modulo${m.nivel > 0 ? ' lit' : ''}${unico && m.materia === baixo.materia ? ' baixo' : ''}`}>
               <h3>{m.nome}</h3>
               <div className="niveis" role="img" aria-label={`Nível ${m.nivel} de 4`}>
                 {[1, 2, 3, 4].map((n) => <i key={n} className={m.nivel >= n ? 'on' : ''} />)}

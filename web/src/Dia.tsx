@@ -157,7 +157,7 @@ export function Dia() {
     return (
       <main className="dia">
         {acerto.node}{header}
-        <div className="dots" role="img" aria-label={`Pergunta ${i + 1} de ${q.items.length}`}>
+        <div className="bloco" role="img" aria-label={`Pergunta ${i + 1} de ${q.items.length}`}>
           {q.items.map((_, k) => <i key={k} className={k < i ? 'on' : k === i ? 'now' : ''} />)}
         </div>
         {card}
@@ -180,7 +180,7 @@ export function Dia() {
     return (
       <main className="dia">
         {acerto.node}{header}
-        <div className="dots" role="img" aria-label={`Pergunta ${i + 1} de ${q.items.length}`}>
+        <div className="bloco" role="img" aria-label={`Pergunta ${i + 1} de ${q.items.length}`}>
           {q.items.map((_, k) => <i key={k} className={k < i ? 'on' : k === i ? 'now' : ''} />)}
         </div>
         {card}
@@ -194,7 +194,7 @@ export function Dia() {
     <main className="dia">
       {acerto.node}
       {header}
-      <div className="dots" role="img" aria-label={`Pergunta ${i + 1} de ${q.items.length}`}>
+      <div className="bloco" role="img" aria-label={`Pergunta ${i + 1} de ${q.items.length}`}>
         {q.items.map((_, k) => <i key={k} className={k < i ? 'on' : k === i ? 'now' : ''} />)}
       </div>
       {card}

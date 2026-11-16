@@ -17,14 +17,14 @@ export function Codigo({ startQuestionId, onBack }: { startQuestionId?: number; 
   const [open, setOpen] = useState<{ questionId: number; ex: Exercise | null } | null>(startQuestionId ? { questionId: startQuestionId, ex: null } : null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [shown, setShown] = useState(30);
+  const [shown, setShown] = useState(7);
   const acerto = useAcerto();
 
   async function load() {
     try { const r = await exercises.list(materia); setItens(r.itens); setLlmReady(r.llmReady); setError(null); }
     catch (e) { setError(msg(e)); }
   }
-  useEffect(() => { void load(); setShown(30); }, [materia]);
+  useEffect(() => { void load(); setShown(7); }, [materia]);
 
   async function openQuestion(questionId: number, existing?: number) {
     setBusy('Abrindo…'); setError(null);
@@ -63,7 +63,7 @@ export function Codigo({ startQuestionId, onBack }: { startQuestionId?: number; 
           </li>
         ))}
       </ol>
-      {itens && shown < itens.length && <button className="more qmore" onClick={() => setShown(shown + 30)}>Mostrar mais</button>}
+      {itens && shown < itens.length && <button className="more qmore" onClick={() => setShown(shown + 7)}>Mostrar mais {Math.min(7, itens.length - shown)}</button>}
     </main>
   );
 }

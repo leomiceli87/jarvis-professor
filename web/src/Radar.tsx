@@ -1,25 +1,29 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api, salaryText, shortDate, STATUS_LABEL, type FilterKey, type JobView, type RunResult, type State, type Status } from './api.ts';
 import { Perfil } from './Perfil.tsx';
 
+const PAGE = 7;
 const CHIP: Partial<Record<FilterKey, string>> = {
   remoto: '100% REMOTO', canada: 'ABERTA AO CANADÁ', senior: 'SÊNIOR', sedeEua: 'SEDE NOS EUA',
   salarioPublicado: 'COM SALÁRIO', processoConhecido: 'PROCESSO CONHECIDO',
 };
 
-interface Props { state: State; jobs: JobView[]; reload: () => Promise<void>; openFilters: () => void; openTraining: (jobId: number) => void }
+interface Props { state: State; jobs: JobView[]; reload: () => Promise<void>; openFilters: () => void; openTraining: (jobId: number) => void; onJob?: (id: number) => void }
 
-export function Radar({ state, jobs, reload, openFilters, openTraining }: Props) {
+export function Radar({ state, jobs, reload, openFilters, openTraining, onJob }: Props) {
   const visible = useMemo(() => jobs.filter((j) => j.eval.visible && j.status !== 'descartada'), [jobs]);
   const discarded = useMemo(() => jobs.filter((j) => j.eval.visible && j.status === 'descartada'), [jobs]);
   const hidden = useMemo(() => jobs.filter((j) => !j.eval.visible), [jobs]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [showHidden, setShowHidden] = useState(false);
+  const [shown, setShown] = useState(PAGE);
+  const [hiddenShown, setHiddenShown] = useState(PAGE);
   const [running, setRunning] = useState(false);
   const [results, setResults] = useState<RunResult[] | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
 
   const selected = jobs.find((j) => j.id === selectedId) ?? visible[0] ?? null;
+  useEffect(() => { if (selected) onJob?.(selected.id); }, [selected, onJob]);
   const f = state.filters;
   const chips = (Object.keys(CHIP) as FilterKey[]).filter((k) => f.rules[k] === 'obrigatorio').map((k) => CHIP[k]!);
   if (f.rules.stackDotnet === 'obrigatorio') chips.push(state.labels.stackDotnet.replace(/^Stack /, '').toUpperCase());
@@ -62,7 +66,7 @@ export function Radar({ state, jobs, reload, openFilters, openTraining }: Props)
       <div className="cols">
         <section className="list" aria-label="Vagas">
           {visible.length === 0 && <p className="empty">Nenhuma vaga passa pelos filtros atuais. Afrouxe um filtro obrigatório ou atualize o radar.</p>}
-          {visible.map((j) => (
+          {visible.slice(0, shown).map((j) => (
             <button key={j.id} className={j.id === selected?.id ? 'row on' : 'row'} aria-pressed={j.id === selected?.id} onClick={() => setSelectedId(j.id)}>
               <span className="fit">{j.fit}%</span>
               <span className="what">
@@ -72,12 +76,17 @@ export function Radar({ state, jobs, reload, openFilters, openTraining }: Props)
               <span className={j.status === 'nao_enviada' ? 'hud' : 'hud done'}>{STATUS_LABEL[j.status].toUpperCase()}</span>
             </button>
           ))}
+          {shown < visible.length && (
+            <button className="more" onClick={() => setShown(shown + PAGE)}>
+              Mostrar mais {Math.min(PAGE, visible.length - shown)}
+            </button>
+          )}
           {(hidden.length > 0 || discarded.length > 0) && (
             <button className="more" aria-expanded={showHidden} onClick={() => setShowHidden(!showHidden)}>
               {hidden.length} escondidas pelos filtros{discarded.length > 0 ? ` · ${discarded.length} descartadas por você` : ''}
             </button>
           )}
-          {showHidden && [...discarded, ...hidden.slice(0, 200)].map((j) => (
+          {showHidden && [...discarded, ...hidden].slice(0, hiddenShown).map((j) => (
             <button key={j.id} className={j.id === selected?.id ? 'row dim on' : 'row dim'} onClick={() => setSelectedId(j.id)}>
               <span className="fit">{j.fit}%</span>
               <span className="what">
@@ -89,6 +98,11 @@ export function Radar({ state, jobs, reload, openFilters, openTraining }: Props)
               </span>
             </button>
           ))}
+          {showHidden && discarded.length + hidden.length > hiddenShown && (
+            <button className="more" onClick={() => setHiddenShown(hiddenShown + PAGE)}>
+              Mostrar mais {Math.min(PAGE, discarded.length + hidden.length - hiddenShown)}
+            </button>
+          )}
         </section>
 
         {selected && (
